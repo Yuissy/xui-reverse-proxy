@@ -52,16 +52,22 @@ detect_os() {
 
 # Внешний IP
 get_public_ip() {
+    local cache_file="$DIR_REVERSE_PROXY/.public_ip"
+    if [[ -f "$cache_file" ]]; then
+        cat "$cache_file"
+        return
+    fi
+
     local ip
     ip=$(curl -s --max-time 5 ipinfo.io/ip 2>/dev/null) || \
     ip=$(curl -s --max-time 5 ifconfig.me 2>/dev/null) || \
     ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null)
     if [[ -z "$ip" ]]; then
-    warning "Не удалось автоматически определить IP"
-    read -p "Введите внешний IP-адрес сервера вручную: " ip
-    [[ -z "$ip" ]] && error "IP не введён. Установка прервана."
-fi
-    echo "$ip"
+        warning "Не удалось автоматически определить IP"
+        read -p "Введите внешний IP-адрес сервера вручную: " ip
+        [[ -z "$ip" ]] && error "IP не введён. Установка прервана."
+    fi
+    echo "$ip" | tee "$cache_file"
 }
 
 # Случайная строка
@@ -116,6 +122,9 @@ setup_ufw() {
     local ssh_port
     ssh_port=$(ss -tlnp | grep sshd | awk '{print $4}' | awk -F':' '{print $NF}' | head -n1)
     ssh_port=${ssh_port:-22}
+    if [[ "$ssh_port" == "22" ]] && ! ss -tlnp | grep -q ":22 "; then
+    warning "SSH-порт не обнаружен, используется 22 (убедитесь, что это верно)"
+    fi
     ufw allow "$ssh_port/tcp"
 
     if [[ "$mode" == "full" ]]; then
@@ -315,7 +324,6 @@ install_xray_relay() {
 configure_xray_relay() {
     local inbound_port=$1
     local secret_path=$2
-    local server1_ip=$3
     section "Конфигурация Xray (relay)"
 
     local uuid
@@ -407,6 +415,11 @@ verify_relay() {
     fi
 }
 
+# Проверка наличия crontab
+_check_crontab() {
+    command -v crontab &>/dev/null || { info "Устанавливаем cron..."; $PKG_INSTALL cron; }
+}
+
 # Главная функция Сервера 2
 run_relay_mode() {
     section "РЕЖИМ RELAY (Сервер 2 — Зарубежный)"
@@ -426,20 +439,19 @@ run_relay_mode() {
     if [[ ! "$inbound_port" =~ ^[0-9]+$ ]] || [[ "$inbound_port" -lt 1024 ]] || [[ "$inbound_port" -gt 65535 ]]; then
         error "Некорректный порт (1024-65535)"
     fi
+        if ss -tlnp 2>/dev/null | grep -q ":$inbound_port "; then
+        warning "Порт $inbound_port уже занят. Это может вызвать конфликт."
+    fi
 
     local secret_path
     read -p "Секретный путь [Enter = сгенерировать]: " secret_path
     secret_path=${secret_path:-/$(random_string 12)}
     [[ "$secret_path" != /* ]] && secret_path="/$secret_path"
 
-    local server1_ip
-    read -p "IP-адрес Сервера 1 (РФ) для ограничения доступа: " server1_ip
-
     echo ""
     info "Параметры:"
     echo "  Порт: $inbound_port"
     echo "  Путь: $secret_path"
-    echo "  Доступ с IP: $server1_ip"
     echo ""
 
     local confirm
@@ -455,7 +467,7 @@ run_relay_mode() {
     download_geo_files
     setup_geo_autoupdate
     setup_warp_relay
-    configure_xray_relay "$inbound_port" "$secret_path" "$server1_ip"
+    configure_xray_relay "$inbound_port" "$secret_path"
     setup_mss_clamp
 
     chown -R root:root /usr/local/etc/xray/
@@ -668,6 +680,7 @@ configure_xray_full() {
     # Сохраняем клиентский UUID для финального вывода
 mkdir -p "$DIR_REVERSE_PROXY"
 echo "$uuid" > "$DIR_REVERSE_PROXY/client_uuid.conf"
+chmod 600 "$DIR_REVERSE_PROXY/client_uuid.conf"
     mkdir -p /usr/local/etc/xray/
 
     cat > /usr/local/etc/xray/config.json <<EOF
@@ -853,6 +866,7 @@ run_full_mode() {
     check_root
     detect_os
     install_dependencies
+    _check_crontab
 
     echo ""
     echo "Настройка российского сервера как точки входа."
