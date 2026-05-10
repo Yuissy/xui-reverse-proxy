@@ -56,7 +56,11 @@ get_public_ip() {
     ip=$(curl -s --max-time 5 ipinfo.io/ip 2>/dev/null) || \
     ip=$(curl -s --max-time 5 ifconfig.me 2>/dev/null) || \
     ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null)
-    [[ -z "$ip" ]] && error "Не удалось определить внешний IP"
+    if [[ -z "$ip" ]]; then
+    warning "Не удалось автоматически определить IP"
+    read -p "Введите внешний IP-адрес сервера вручную: " ip
+    [[ -z "$ip" ]] && error "IP не введён. Установка прервана."
+fi
     echo "$ip"
 }
 
@@ -238,7 +242,10 @@ setup_geo_autoupdate() {
     section "Настройка автообновления geo"
     cat > /usr/local/bin/update-geodata.sh <<'EOF'
 #!/bin/bash
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install-geodata
+GEO_DIR="/usr/local/share/xray"
+mkdir -p "$GEO_DIR"
+curl -L --max-time 30 -o "$GEO_DIR/geoip.dat" "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat"
+curl -L --max-time 30 -o "$GEO_DIR/geosite.dat" "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat"
 systemctl restart xray 2>/dev/null || true
 EOF
     chmod +x /usr/local/bin/update-geodata.sh
@@ -323,7 +330,7 @@ configure_xray_relay() {
     "port": $inbound_port,
     "protocol": "vless",
     "settings": { "clients": [{ "id": "$uuid", "flow": "" }], "decryption": "none" },
-    "streamSettings": { "network": "xhttp", "xhttpSettings": { "path": "$secret_path", "host": "" } },
+    "streamSettings": { "network": "xhttp", "xhttpSettings": {"path": "$secret_path", "host": "", "scMaxEachPostBytes": "1000000-2000000"} },
     "sniffing": { "enabled": true, "destOverride": ["http", "tls"], "routeOnly": true }
   }],
   "outbounds": [
@@ -363,6 +370,7 @@ SERVER2_PORT=$inbound_port
 SERVER2_PATH=$secret_path
 SERVER2_UUID=$uuid
 EOF
+chmod 600 "$DIR_REVERSE_PROXY/server2_params.conf"
     info "Параметры сохранены в $DIR_REVERSE_PROXY/server2_params.conf"
 }
 
@@ -657,6 +665,9 @@ configure_xray_full() {
 
     local uuid
     uuid=$(generate_uuid)
+    # Сохраняем клиентский UUID для финального вывода
+mkdir -p "$DIR_REVERSE_PROXY"
+echo "$uuid" > "$DIR_REVERSE_PROXY/client_uuid.conf"
     mkdir -p /usr/local/etc/xray/
 
     cat > /usr/local/etc/xray/config.json <<EOF
@@ -684,9 +695,10 @@ configure_xray_full() {
       "streamSettings": {
         "network": "xhttp",
         "xhttpSettings": {
-          "path": "$secret_path",
-          "host": "$domain"
-        }
+    "path": "$secret_path",
+    "host": "",
+    "scMaxEachPostBytes": "1000000-2000000"
+}
       },
       "sniffing": {
         "enabled": true,
@@ -722,12 +734,14 @@ configure_xray_full() {
         ]
       },
       "streamSettings": {
-        "network": "xhttp",
-        "xhttpSettings": {
-          "path": "$secret_path",
-          "host": ""
+    "network": "xhttp",
+    "fingerprint": "chrome",
+    "xhttpSettings": {
+        "path": "$secret_path",
+        "host": "",
+        "scMaxEachPostBytes": "1000000-2000000"
+            }
         }
-      }
     },
     {
       "tag": "blocked",
@@ -910,7 +924,7 @@ run_full_mode() {
 
     # Финальный вывод
     local client_uuid
-    client_uuid=$(grep -o '"id": "[^"]*"' /usr/local/etc/xray/config.json | head -1 | cut -d'"' -f4)
+    client_uuid=$(cat "$DIR_REVERSE_PROXY/client_uuid.conf" 2>/dev/null || echo "не найден")
     local server_ip
     server_ip=$(get_public_ip)
 
@@ -919,13 +933,15 @@ run_full_mode() {
     echo "  УСТАНОВКА ЗАВЕРШЕНА"
     echo "============================================"
     echo "  Домен: https://$domain"
-    echo "  Панель: http://127.0.0.1:2053/$web_base_path"
+    local panel_port
+    panel_port=$(grep -oP '"port":\s*\K\d+' /etc/x-ui/x-ui.db 2>/dev/null | head -1 || echo "2053")
+    echo "  Панель: http://127.0.0.1:$panel_port/$web_base_path"
     echo "         (через SSH-туннель)"
     echo ""
     echo "  ДОСТУП К ПАНЕЛИ:"
     echo "  Выполните на своём ПК:"
-    echo "  ssh -L 2053:127.0.0.1:2053 root@$server_ip"
-    echo "  Затем откройте: http://127.0.0.1:2053/$web_base_path"
+    echo "  ssh -L $panel_port:127.0.0.1:$panel_port root@$server_ip"
+    echo "  Затем откройте: http://127.0.0.1:$panel_port/$web_base_path"
     echo ""
     echo "  ДАННЫЕ ДЛЯ КЛИЕНТА (v2rayN/Nekobox):"
     echo "  Адрес: $domain"
