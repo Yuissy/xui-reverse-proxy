@@ -1,5 +1,6 @@
 #!/bin/bash
-
+set -e
+[[ $EUID -ne 0 ]] && { echo "Запустите от root: sudo bash $0"; exit 1; }
 ### INFO ###
 Green="\033[32m"
 Red="\033[31m"
@@ -47,8 +48,11 @@ msg_inf "Random template name: ${RandomHTML}"
 # Если шаблон существует, копируем его в /var/www/html
 if [[ -d "${RandomHTML}" && -d "/var/www/html/" ]]; then
     msg_inf "Копируем шаблон в /var/www/html/..."
+    [[ ! -d /var/www/html ]] && { echo "Ошибка: папка /var/www/html не найдена. Сначала запустите основной скрипт."; exit 1; }
     rm -rf /var/www/html/*  # Очищаем старую папку
     cp -a "${RandomHTML}/." /var/www/html/ || { msg_err "Ошибка при копировании шаблона"; exit 1; }
+    chown -R www-data:www-data /var/www/html/ 2>/dev/null || chown -R nginx:nginx /var/www/html/ 2>/dev/null || true
+    chmod -R 755 /var/www/html/
     msg_ok "Шаблон успешно извлечен и установлен!"
 else
     msg_err "Ошибка при извлечении шаблона!"
@@ -56,3 +60,4 @@ else
 fi
 
 cd ~ || { msg_err "Не удалось вернуться в домашнюю директорию"; exit 1; }
+systemctl restart nginx 2>/dev/null || true
