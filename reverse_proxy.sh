@@ -325,6 +325,7 @@ configure_xray_relay() {
     local inbound_port=$1
     local secret_path=$2
     section "Конфигурация Xray (relay)"
+    mkdir -p "$DIR_REVERSE_PROXY"
 
     local uuid
     uuid=$(generate_uuid)
@@ -617,7 +618,7 @@ location /$web_base_path {
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_pass http://127.0.0.1:36075/$web_base_path;
+    proxy_pass http://127.0.0.1:2053/$web_base_path;
     break;
 }
 EOF
