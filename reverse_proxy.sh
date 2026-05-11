@@ -105,6 +105,8 @@ install_dependencies() {
     if [[ ${#missing[@]} -gt 0 ]]; then
         info "Устанавливаем: ${missing[*]}"
         $PKG_UPDATE
+        echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections 2>/dev/null || true
+        echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections 2>/dev/null || true
         $PKG_INSTALL "${missing[@]}"
     else
         info "Все зависимости уже установлены"
@@ -308,16 +310,30 @@ setup_warp_relay() {
         rm -f wgcf-account.toml wgcf-profile.conf
         for i in {1..3}; do
             if yes | "$wgcf_bin" register 2>/dev/null; then ok=true; break
-            else sleep 10; fi
+            else sleep 15; fi
         done
-        if ! $ok; then warning "Не удалось зарегистрировать WARP."; return 1; fi
-
-        ok=false
-        for i in {1..3}; do
-            if "$wgcf_bin" generate 2>/dev/null; then ok=true; break
-            else sleep 10; fi
-        done
-        if ! $ok; then warning "Не удалось сгенерировать конфиг WARP."; return 1; fi
+        
+        # Если register упал, но файл аккаунта создался — пробуем generate
+        if ! $ok && [[ -f wgcf-account.toml ]]; then
+            info "Аккаунт создан, генерируем ключи..."
+            ok=false
+            for i in {1..3}; do
+                if "$wgcf_bin" generate 2>/dev/null; then ok=true; break
+                else sleep 10; fi
+            done
+        elif ! $ok; then
+            warning "Не удалось зарегистрировать WARP."; return 1
+        fi
+        
+        # Если после регистрации нужно сгенерировать
+        if $ok && [[ ! -f wgcf-profile.conf ]]; then
+            ok=false
+            for i in {1..3}; do
+                if "$wgcf_bin" generate 2>/dev/null; then ok=true; break
+                else sleep 10; fi
+            done
+            if ! $ok; then warning "Не удалось сгенерировать конфиг WARP."; return 1; fi
+        fi
     fi
 
     [[ ! -f "/tmp/wgcf-profile.conf" ]] && { warning "Конфиг не найден."; return 1; }
@@ -332,8 +348,8 @@ setup_warp_relay() {
 
     local xray_config="/usr/local/etc/xray/config.json"
     if [[ -f "$xray_config" ]]; then
-        sed -i "s|WARP_SECRET_KEY_PLACEHOLDER|$private_key|g" "$xray_config"
-        sed -i "s|WARP_PUBLIC_KEY_PLACEHOLDER|$public_key|g" "$xray_config"
+        sed -i "s|\"secretKey\": \"[^\"]*\"|\"secretKey\": \"$private_key\"|" "$xray_config"
+        sed -i "s|\"publicKey\": \"[^\"]*\"|\"publicKey\": \"$PUBLIC_KEY\"|" "$xray_config"
         info "Ключи WARP вставлены в конфиг Xray"
     fi
 }
