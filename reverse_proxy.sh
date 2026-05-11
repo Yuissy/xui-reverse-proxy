@@ -64,7 +64,7 @@ get_public_ip() {
     ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null)
     if [[ -z "$ip" ]]; then
         warning "Не удалось автоматически определить IP"
-    set +u; read -p "Введите внешний IP-адрес сервера вручную: " ip; set -u
+    read -p "Введите внешний IP-адрес сервера вручную: " ip
     [[ -z "$ip" ]] && error "IP не введён. Установка прервана."
     fi
     echo "$ip" | tee "$cache_file"
