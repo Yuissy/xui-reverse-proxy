@@ -430,6 +430,7 @@ run_relay_mode() {
     check_root
     detect_os
     install_dependencies
+    _check_crontab
 
     echo ""
     echo "Настройка зарубежного сервера как ретранслятора."
