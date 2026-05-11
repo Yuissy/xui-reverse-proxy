@@ -260,7 +260,9 @@ curl -L --max-time 30 -o "$GEO_DIR/geosite.dat" "https://raw.githubusercontent.c
 systemctl restart xray 2>/dev/null || true
 EOF
     chmod +x /usr/local/bin/update-geodata.sh
+    set +o pipefail
     (crontab -l 2>/dev/null | grep -v "update-geodata.sh"; echo "0 3 * * 6 /usr/local/bin/update-geodata.sh") | crontab -
+    set -o pipefail
     info "Автообновление geo включено (еженедельно)"
 }
 
@@ -482,6 +484,27 @@ run_relay_mode() {
 
     systemctl enable xray
     systemctl restart xray
+
+    # Финальный вывод
+    local public_ip
+    public_ip=$(get_public_ip)
+    local client_uuid
+    client_uuid=$(grep -o '"id": "[^"]*"' /usr/local/etc/xray/config.json | head -1 | cut -d'"' -f4)
+
+    echo ""
+    echo "============================================"
+    echo "  СЕРВЕР 2 УСПЕШНО НАСТРОЕН"
+    echo "============================================"
+    echo "  IP Сервера 2:        $public_ip"
+    echo "  Порт inbound:        $inbound_port"
+    echo "  Секретный путь:      $secret_path"
+    echo "  UUID:                $client_uuid"
+    echo "============================================"
+    echo "  Скопируйте эти данные. Они понадобятся"
+    echo "  при запуске скрипта на Сервере 1 (РФ)."
+    echo "============================================"
+    echo ""
+
     verify_relay
 }
 
@@ -523,7 +546,9 @@ EOF
         --no-eff-email --non-interactive
 
     echo "renew_hook = systemctl reload nginx" >> "/etc/letsencrypt/renewal/$domain.conf"
+    set +o pipefail
     (crontab -l 2>/dev/null; echo "0 5 1 */2 * certbot -q renew") | crontab -
+    set -o pipefail
     info "Сертификаты выпущены"
 }
 
