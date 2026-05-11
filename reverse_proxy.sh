@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ########################################
-# REVERSE PROXY FORK v1.0
+# REVERSE PROXY FORK v1.1
 # XHTTP + Cascade (full/relay)
 # Основан на скрипте cortez24rus (MIT)
 ########################################
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 DIR_REVERSE_PROXY="/usr/local/reverse_proxy/"
 
 # Цвета
@@ -522,6 +522,19 @@ run_relay_mode() {
     echo "============================================"
     echo "  Скопируйте эти данные. Они понадобятся"
     echo "  при запуске скрипта на Сервере 1 (РФ)."
+    echo ""
+    echo "  НАСТРОЙКА SSH-КЛЮЧЕЙ (рекомендуется):"
+    echo "  1. На своём ПК сгенерируйте ключ (если ещё нет):"
+    echo "     ssh-keygen -t ed25519"
+    echo "  2. Скопируйте ключ на сервер:"
+    echo "     ssh-copy-id root@$public_ip"
+    echo "  3. Проверьте вход без пароля:"
+    echo "     ssh root@$public_ip"
+    echo "  4. После успешной проверки отключите вход по паролю:"
+    echo "     sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
+    echo "     sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
+    echo "     sudo systemctl restart sshd"
+    echo "  5. ОТКЛЮЧАТЬ ВХОД ПО ПАРОЛЮ ТОЛЬКО ПОСЛЕ ПРОВЕРКИ КЛЮЧА!"
     echo "============================================"
     echo ""
 
@@ -1040,6 +1053,22 @@ run_full_mode() {
     echo "============================================"
     echo ""
     echo "  ПОСЛЕ УСТАНОВКИ:"
+    echo "  НАСТРОЙКА SSH-КЛЮЧЕЙ (рекомендуется):"
+    echo "  1. На своём ПК сгенерируйте ключ (если ещё нет):"
+    echo "     ssh-keygen -t ed25519"
+    echo "  2. Скопируйте ключ на сервер:"
+    echo "     ssh-copy-id root@$server_ip"
+    echo "  3. Проверьте вход без пароля:"
+    echo "     ssh root@$server_ip"
+    echo "  4. После успешной проверки отключите вход по паролю:"
+    echo "     sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
+    echo "     sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
+    echo "     sudo systemctl restart sshd"
+    echo "  5. ОТКЛЮЧАТЬ ВХОД ПО ПАРОЛЮ ТОЛЬКО ПОСЛЕ ПРОВЕРКИ КЛЮЧА!"
+    echo ""
+    echo "============================================"
+    echo ""
+    echo "  ПОСЛЕ НАСТРОЙКИ SSH-КЛЮЧЕЙ:"    
     echo "  1. Проверьте сервер через ByeByeVPN:"
     echo "     https://github.com/pwnnex/ByeByeVPN"
     echo "  2. Настройте клиент строго по инструкции"
