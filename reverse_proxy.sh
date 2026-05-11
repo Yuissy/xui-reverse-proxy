@@ -153,7 +153,9 @@ EOF
 
 # fail2ban (усиленный)
 setup_fail2ban() {
+    local mode=$1
     section "Настройка fail2ban"
+    
     cat > /etc/fail2ban/jail.local <<'EOF'
 [sshd]
 enabled = true
@@ -163,6 +165,10 @@ logpath = /var/log/auth.log
 maxretry = 3
 bantime = 7200
 findtime = 600
+EOF
+
+    if [[ "$mode" == "full" ]]; then
+        cat >> /etc/fail2ban/jail.local <<'EOF'
 
 [nginx-http-auth]
 enabled = true
@@ -182,7 +188,9 @@ maxretry = 2
 bantime = 86400
 findtime = 300
 EOF
+    fi
 
+    touch /var/log/auth.log
     systemctl enable fail2ban
     systemctl restart fail2ban
     info "fail2ban запущен"
@@ -468,7 +476,7 @@ run_relay_mode() {
 
     setup_bbr
     setup_ufw "relay" "$inbound_port"
-    setup_fail2ban
+    setup_fail2ban "relay"
     setup_auto_updates
     install_xray_relay
     download_geo_files
@@ -969,7 +977,7 @@ run_full_mode() {
 
     setup_bbr
     setup_ufw "full"
-    setup_fail2ban
+    setup_fail2ban "full"
     setup_auto_updates
     install_nginx_full
     install_xui_panel
