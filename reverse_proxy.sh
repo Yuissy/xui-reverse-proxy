@@ -291,7 +291,7 @@ setup_warp_relay() {
     cd /tmp
     local ok=false
     for i in {1..3}; do
-        if "$wgcf_bin" register 2>/dev/null; then ok=true; break
+        if yes | "$wgcf_bin" register 2>/dev/null; then ok=true; break
         else sleep 10; fi
     done
     if ! $ok; then warning "Не удалось зарегистрировать WARP."; return 1; fi
@@ -320,9 +320,7 @@ setup_warp_relay() {
         sed -i "s|WARP_PUBLIC_KEY_PLACEHOLDER|$public_key|g" "$xray_config"
         info "Ключи WARP вставлены в конфиг Xray"
     fi
-    rm -f /tmp/wgcf-account.toml /tmp/wgcf-profile.conf
 }
-
 # Установка Xray
 install_xray_relay() {
     section "Установка Xray"
@@ -481,8 +479,8 @@ run_relay_mode() {
     install_xray_relay
     download_geo_files
     setup_geo_autoupdate
-    setup_warp_relay
     configure_xray_relay "$inbound_port" "$secret_path"
+    setup_warp_relay
     setup_mss_clamp
 
     chown -R root:root /usr/local/etc/xray/
