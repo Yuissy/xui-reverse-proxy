@@ -446,7 +446,7 @@ run_relay_mode() {
     fi
 
     local secret_path
-    set +u; read -p "Секретный путь [Enter = сгенерировать]: " secret_path; set -u
+    set +eu; read -p "Секретный путь [Enter = сгенерировать]: " secret_path; set -eu
     [[ -z "$secret_path" ]] && secret_path="/$(random_string 12)"
     [[ "$secret_path" != /* ]] && secret_path="/$secret_path"
 
