@@ -405,6 +405,8 @@ configure_xray_relay() {
 EOF
 
     mkdir -p "$DIR_REVERSE_PROXY"
+    local public_ip
+    public_ip=$(get_public_ip)
     cat > "$DIR_REVERSE_PROXY/server2_params.conf" <<EOF
 SERVER2_IP=$public_ip
 SERVER2_PORT=$inbound_port
