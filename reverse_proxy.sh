@@ -501,8 +501,6 @@ run_relay_mode() {
     setup_fail2ban "relay"
     setup_auto_updates
     install_xray_relay
-    download_geo_files
-    setup_geo_autoupdate
     configure_xray_relay "$inbound_port" "$secret_path"
     setup_warp_relay
     setup_mss_clamp
