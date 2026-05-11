@@ -266,9 +266,12 @@ curl -L --max-time 30 -o "$GEO_DIR/geosite.dat" "https://raw.githubusercontent.c
 systemctl restart xray 2>/dev/null || true
 EOF
     chmod +x /usr/local/bin/update-geodata.sh
-    set +o pipefail
-    (crontab -l 2>/dev/null | grep -v "update-geodata.sh"; echo "0 3 * * 6 /usr/local/bin/update-geodata.sh") | crontab -
-    set -o pipefail
+    local tmp_cron=$(mktemp)
+    crontab -l 2>/dev/null > "$tmp_cron" || true
+    grep -v "update-geodata.sh" "$tmp_cron" > "${tmp_cron}.filtered" 2>/dev/null || true
+    echo "0 3 * * 6 /usr/local/bin/update-geodata.sh" >> "${tmp_cron}.filtered"
+    crontab "${tmp_cron}.filtered"
+    rm -f "$tmp_cron" "${tmp_cron}.filtered"
     info "Автообновление geo включено (еженедельно)"
 }
 
