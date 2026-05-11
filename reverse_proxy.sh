@@ -522,7 +522,7 @@ run_relay_mode() {
     setup_mss_clamp
 
     chown -R root:root /usr/local/etc/xray/
-    chmod 600 /usr/local/etc/xray/config.json
+    chmod 644 /usr/local/etc/xray/config.json
 
     systemctl enable xray
     systemctl restart xray
@@ -1038,7 +1038,7 @@ run_full_mode() {
     setup_mss_clamp
 
     chown -R root:root /usr/local/etc/xray/
-    chmod 600 /usr/local/etc/xray/config.json
+    chmod 644 /usr/local/etc/xray/config.json
 
     systemctl enable xray
     systemctl restart xray
