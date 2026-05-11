@@ -95,7 +95,7 @@ generate_uuid() {
 # Установка зависимостей
 install_dependencies() {
     section "Установка зависимостей"
-    local deps=("curl" "wget" "jq" "openssl" "ufw" "fail2ban" "ca-certificates" "gnupg" "sqlite3")
+    local deps=("curl" "wget" "jq" "openssl" "ufw" "fail2ban" "ca-certificates" "gnupg" "sqlite3" "iptables-persistent")
     local missing=()
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &>/dev/null && ! dpkg -l 2>/dev/null | grep -q "^ii.*$dep"; then
@@ -211,8 +211,6 @@ setup_mss_clamp() {
     fi
     if command -v netfilter-persistent &>/dev/null; then
         netfilter-persistent save
-    elif command -v iptables-save &>/dev/null; then
-        iptables-save > /etc/iptables/rules.v4
     fi
     info "TCP MSS Clamp настроен"
 }
