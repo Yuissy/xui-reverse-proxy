@@ -47,7 +47,7 @@ bash <(curl -Ls https://github.com/Yuissy/xui-reverse-proxy/blob/main/reverse_pr
 ### Шаг 2: Сервер 1 (РФ, точка входа)
 
 ```bash
-bash <(curl -Ls https://github.com/Yuissy/xui-reverse-proxy/blob/main/reverse_proxy.sh) --mode full
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy.sh) --mode full
 ```
 Потребуется ввести:
 
