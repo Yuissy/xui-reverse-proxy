@@ -73,7 +73,9 @@ get_public_ip() {
 # Случайная строка
 random_string() {
     local length=${1:-30}
+    set +o pipefail
     tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$length"
+    set -o pipefail
 }
 
 # Случайный порт
@@ -436,7 +438,7 @@ run_relay_mode() {
 
     local inbound_port
     local suggested_port=$(random_port)
-    printf "Порт для туннеля [Enter = %s]: " "$suggested_port"
+    printf "Порт для туннеля (диапазон: 1024-65535) [Enter = %s]: " "$suggested_port"
     read inbound_port || true
     [[ -z "$inbound_port" ]] && inbound_port=$suggested_port
     if [[ ! "$inbound_port" =~ ^[0-9]+$ ]] || [[ "$inbound_port" -lt 1024 ]] || [[ "$inbound_port" -gt 65535 ]]; then
@@ -447,7 +449,7 @@ run_relay_mode() {
     fi
 
     local secret_path
-    printf "Секретный путь [Enter = сгенерировать]: "
+    printf "Секретный путь (напр. /v3/assets/updates) [Enter = сгенерировать]: "
     read secret_path || true
     [[ -z "$secret_path" ]] && secret_path="/$(random_string 12)"
     [[ "$secret_path" != /* ]] && secret_path="/$secret_path"
@@ -895,7 +897,8 @@ run_full_mode() {
     done
 
     local web_base_path
-    set +u; read -p "Путь к панели управления [Enter = сгенерировать]: " web_base_path; set -u
+    printf "Путь к панели управления (напр. /myadmin) [Enter = сгенерировать]: "
+    read web_base_path || true
     [[ -z "$web_base_path" ]] && web_base_path=$(random_string 12)
 
     echo ""
