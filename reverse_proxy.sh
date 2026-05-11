@@ -116,7 +116,7 @@ install_dependencies() {
 # UFW
 setup_ufw() {
     local mode=$1
-    local inbound_port=$2
+    local inbound_port=${2:-0}
     section "Настройка UFW"
 
     ufw --force reset
