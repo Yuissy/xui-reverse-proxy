@@ -44,10 +44,18 @@ fi
 
 # 4. Cron
 if systemctl is-active --quiet cron 2>/dev/null; then
-    if crontab -l 2>/dev/null | grep -v "^#" | grep -q "[0-9]"; then
-        RESULTS["Cron"]="$PASS запущен, задачи есть"
+    # В режиме relay (без Nginx) просто проверяем, что cron установлен
+    if ! command -v nginx &>/dev/null; then
+        RESULTS["Cron"]="$PASS установлен, готов к задачам"
     else
-        RESULTS["Cron"]="$WARN запущен, но crontab пуст"
+        # В режиме full проверяем наличие задач
+        local cron_tasks
+        cron_tasks=$(crontab -l 2>/dev/null | grep -v "^#" | grep -v "^$" | wc -l)
+        if [[ "$cron_tasks" -gt 0 ]]; then
+            RESULTS["Cron"]="$PASS запущен, задачи есть"
+        else
+            RESULTS["Cron"]="$WARN запущен, но crontab пуст"
+        fi
     fi
 else
     RESULTS["Cron"]="$FAIL не запущен"
