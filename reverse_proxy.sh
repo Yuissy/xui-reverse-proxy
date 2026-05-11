@@ -945,19 +945,19 @@ run_full_mode() {
     echo "Настройка российского сервера как точки входа."
     echo ""
 
-    local domain
+    local domain=""
     while [[ -z "$domain" ]]; do
         read -p "Ваш домен (например, example.ru) [обязательно]. Для выхода из процесса установки оставьте поле пустым и нажмите Enter: " domain
         [[ -z "$domain" ]] && error "Домен обязателен. Установка прервана."
     done
 
-    local email
+    local email=""
     while [[ -z "$email" ]]; do
         read -p "Email Cloudflare [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " email
         [[ -z "$email" ]] && error "Email обязателен. Установка прервана."
     done
 
-    local cf_token
+    local cf_token=""
     while [[ -z "$cf_token" ]]; do
         read -p "API-ключ Cloudflare (Global API Key) [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " cf_token
         [[ -z "$cf_token" ]] && error "API-ключ Cloudflare обязателен. Установка прервана."
@@ -972,25 +972,25 @@ run_full_mode() {
     echo "Введите параметры зарубежного сервера (Сервер 2):"
     echo ""
 
-    local server2_ip
+    local server2_ip=""
     while [[ -z "$server2_ip" ]]; do
         read -p "IP-адрес Сервера 2 [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " server2_ip
         [[ -z "$server2_ip" ]] && error "IP-адрес обязателен. Установка прервана."
     done
 
-    local server2_port
+    local server2_port=""
     while [[ -z "$server2_port" ]]; do
         read -p "Порт inbound Сервера 2 [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " server2_port
         [[ -z "$server2_port" ]] && error "Порт обязателен. Установка прервана."
     done
 
-    local server2_uuid
+    local server2_uuid=""
     while [[ -z "$server2_uuid" ]]; do
         read -p "UUID Сервера 2 [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " server2_uuid
         [[ -z "$server2_uuid" ]] && error "UUID обязателен. Установка прервана."
     done
 
-    local secret_path
+    local secret_path=""
     while [[ -z "$secret_path" ]]; do
         read -p "Секретный путь (такой же, как на Сервере 2) [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " secret_path
         [[ -z "$secret_path" ]] && error "Секретный путь обязателен. Установка прервана."
