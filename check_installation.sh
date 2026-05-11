@@ -44,7 +44,7 @@ fi
 
 # 4. Cron
 if systemctl is-active --quiet cron 2>/dev/null; then
-    if crontab -l 2>/dev/null | grep -qv "^#" | grep -q "[0-9]"; then
+    if crontab -l 2>/dev/null | grep -v "^#" | grep -q "[0-9]"; then
         RESULTS["Cron"]="$PASS запущен, задачи есть"
     else
         RESULTS["Cron"]="$WARN запущен, но crontab пуст"
