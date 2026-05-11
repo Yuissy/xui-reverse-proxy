@@ -318,7 +318,7 @@ setup_warp_relay() {
 # Установка Xray
 install_xray_relay() {
     section "Установка Xray"
-    bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install --version latest
+    bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
     info "Xray установлен"
 }
 
