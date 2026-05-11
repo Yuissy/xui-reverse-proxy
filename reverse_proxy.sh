@@ -287,22 +287,35 @@ setup_warp_relay() {
         chmod +x "$wgcf_bin"
     fi
 
-    info "Регистрируем WARP..."
     cd /tmp
     local ok=false
-    for i in {1..3}; do
-        if yes | "$wgcf_bin" register 2>/dev/null; then ok=true; break
-        else sleep 10; fi
-    done
-    if ! $ok; then warning "Не удалось зарегистрировать WARP."; return 1; fi
 
-    info "Генерируем конфиг..."
-    ok=false
-    for i in {1..3}; do
-        if "$wgcf_bin" generate 2>/dev/null; then ok=true; break
-        else sleep 10; fi
-    done
-    if ! $ok; then warning "Не удалось сгенерировать конфиг WARP."; return 1; fi
+    # Пробуем сгенерировать из существующего аккаунта
+    if [[ -f wgcf-account.toml ]]; then
+        info "Найден существующий аккаунт WARP, генерируем ключи..."
+        for i in {1..3}; do
+            if "$wgcf_bin" generate 2>/dev/null; then ok=true; break
+            else sleep 10; fi
+        done
+    fi
+
+    # Если нет аккаунта или генерация не удалась — регистрируем заново
+    if ! $ok; then
+        info "Регистрируем новый аккаунт WARP..."
+        rm -f wgcf-account.toml wgcf-profile.conf
+        for i in {1..3}; do
+            if yes | "$wgcf_bin" register 2>/dev/null; then ok=true; break
+            else sleep 10; fi
+        done
+        if ! $ok; then warning "Не удалось зарегистрировать WARP."; return 1; fi
+
+        ok=false
+        for i in {1..3}; do
+            if "$wgcf_bin" generate 2>/dev/null; then ok=true; break
+            else sleep 10; fi
+        done
+        if ! $ok; then warning "Не удалось сгенерировать конфиг WARP."; return 1; fi
+    fi
 
     [[ ! -f "/tmp/wgcf-profile.conf" ]] && { warning "Конфиг не найден."; return 1; }
 
