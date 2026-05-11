@@ -77,6 +77,11 @@ UUID: уникальный идентификатор
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/logging.sh)
 ```
+### Проверка установки
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/check_installation.sh)
+```
 Дополнительно
 После установки рекомендуется проверить сервер через ByeByeVPN — внешний сканер детектируемости прокси.
 
