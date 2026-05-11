@@ -885,7 +885,7 @@ run_full_mode() {
 
     local web_base_path
     read -p "Путь к панели управления [Enter = сгенерировать]: " web_base_path
-    web_base_path=${web_base_path:-$(random_string 12)}
+    [[ -z "$web_base_path" ]] && web_base_path=$(random_string 12)
 
     echo ""
     echo "Введите параметры зарубежного сервера (Сервер 2):"
@@ -902,6 +902,7 @@ run_full_mode() {
 
     local secret_path
     read -p "Секретный путь (такой же, как на Сервере 2): " secret_path
+    [[ -z "$secret_path" ]] && error "Секретный путь не может быть пустым"
     [[ "$secret_path" != /* ]] && secret_path="/$secret_path"
 
     echo ""
