@@ -268,12 +268,18 @@ curl -L --max-time 30 -o "$GEO_DIR/geosite.dat" "https://raw.githubusercontent.c
 systemctl restart xray 2>/dev/null || true
 EOF
     chmod +x /usr/local/bin/update-geodata.sh
-    local tmp_cron=$(mktemp)
-    crontab -l 2>/dev/null > "$tmp_cron" || true
-    grep -v "update-geodata.sh" "$tmp_cron" > "${tmp_cron}.filtered" 2>/dev/null || true
-    echo "0 3 * * 6 /usr/local/bin/update-geodata.sh" >> "${tmp_cron}.filtered"
-    crontab "${tmp_cron}.filtered"
-    rm -f "$tmp_cron" "${tmp_cron}.filtered"
+    
+    # Добавляем cron-задачу напрямую
+    local cron_entry="0 3 * * 6 /usr/local/bin/update-geodata.sh"
+    if ! crontab -l 2>/dev/null | grep -qF "update-geodata.sh"; then
+        (crontab -l 2>/dev/null || true; echo "$cron_entry") | crontab - 2>/dev/null || {
+            # Если crontab - не сработал — пишем в файл напрямую
+            local cron_file="/var/spool/cron/crontabs/root"
+            mkdir -p /var/spool/cron/crontabs
+            grep -qF "update-geodata.sh" "$cron_file" 2>/dev/null || echo "$cron_entry" >> "$cron_file"
+            chmod 600 "$cron_file"
+        }
+    fi
     info "Автообновление geo включено (еженедельно)"
 }
 
@@ -349,7 +355,7 @@ setup_warp_relay() {
     local xray_config="/usr/local/etc/xray/config.json"
     if [[ -f "$xray_config" ]]; then
         sed -i "s|\"secretKey\": \"[^\"]*\"|\"secretKey\": \"$private_key\"|" "$xray_config"
-        sed -i "s|\"publicKey\": \"[^\"]*\"|\"publicKey\": \"$PUBLIC_KEY\"|" "$xray_config"
+        sed -i "s|\"publicKey\": \"[^\"]*\"|\"publicKey\": \"$public_key\"|" "$xray_config"
         info "Ключи WARP вставлены в конфиг Xray"
     fi
 }
