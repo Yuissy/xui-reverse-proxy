@@ -72,6 +72,11 @@ UUID: уникальный идентификатор
 
 Введите эти данные в клиент (v2rayN, Nekobox, v2rayNG).
 
+### Шаг 4: Настройка логирования (рекомендуется)
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/logging.sh)
+```
 Дополнительно
 После установки рекомендуется проверить сервер через ByeByeVPN — внешний сканер детектируемости прокси.
 
