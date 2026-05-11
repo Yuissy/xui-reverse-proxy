@@ -404,20 +404,6 @@ configure_xray_relay() {
 }
 EOF
 
-    # Вывод параметров
-    local public_ip
-    public_ip=$(get_public_ip)
-    echo ""
-    echo "============================================"
-    echo "  СЕРВЕР 2 НАСТРОЕН. ДАННЫЕ ДЛЯ СЕРВЕРА 1:"
-    echo "============================================"
-    echo "  IP Сервера 2:        $public_ip"
-    echo "  Порт inbound:        $inbound_port"
-    echo "  Секретный путь:      $secret_path"
-    echo "  UUID:                $uuid"
-    echo "============================================"
-    echo ""
-
     mkdir -p "$DIR_REVERSE_PROXY"
     cat > "$DIR_REVERSE_PROXY/server2_params.conf" <<EOF
 SERVER2_IP=$public_ip
@@ -448,7 +434,7 @@ verify_relay() {
         ok=false
     fi
 
-    if systemctl is-active --quiet fail2ban; then
+    if fail2ban-client status 2>/dev/null | grep -q "Number of jail"; then
         info "✅ fail2ban запущен"
     else
         warning "❌ fail2ban не запущен"
@@ -932,7 +918,7 @@ verify_full() {
         ok=false
     fi
 
-    if systemctl is-active --quiet fail2ban; then
+    if fail2ban-client status 2>/dev/null | grep -q "Number of jail"; then
         info "✅ fail2ban запущен"
     else
         warning "❌ fail2ban не запущен"
