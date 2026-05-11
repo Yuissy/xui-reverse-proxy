@@ -64,8 +64,8 @@ get_public_ip() {
     ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null)
     if [[ -z "$ip" ]]; then
         warning "Не удалось автоматически определить IP"
-        read -p "Введите внешний IP-адрес сервера вручную: " ip
-        [[ -z "$ip" ]] && error "IP не введён. Установка прервана."
+    set +u; read -p "Введите внешний IP-адрес сервера вручную: " ip; set -u
+    [[ -z "$ip" ]] && error "IP не введён. Установка прервана."
     fi
     echo "$ip" | tee "$cache_file"
 }
@@ -875,16 +875,25 @@ run_full_mode() {
     echo ""
 
     local domain
-    read -p "Ваш домен (например, example.ru): " domain
+    while [[ -z "$domain" ]]; do
+        read -p "Ваш домен (например, example.ru) [обязательно]. Для выхода из процесса установки оставьте поле пустым и нажмите Enter: " domain
+        [[ -z "$domain" ]] && error "Домен обязателен. Установка прервана."
+    done
 
     local email
-    read -p "Email Cloudflare: " email
+    while [[ -z "$email" ]]; do
+        read -p "Email Cloudflare [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " email
+        [[ -z "$email" ]] && error "Email обязателен. Установка прервана."
+    done
 
     local cf_token
-    read -p "API-ключ Cloudflare (Global API Key): " cf_token
+    while [[ -z "$cf_token" ]]; do
+        read -p "API-ключ Cloudflare (Global API Key) [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " cf_token
+        [[ -z "$cf_token" ]] && error "API-ключ Cloudflare обязателен. Установка прервана."
+    done
 
     local web_base_path
-    read -p "Путь к панели управления [Enter = сгенерировать]: " web_base_path
+    set +u; read -p "Путь к панели управления [Enter = сгенерировать]: " web_base_path; set -u
     [[ -z "$web_base_path" ]] && web_base_path=$(random_string 12)
 
     echo ""
@@ -892,17 +901,28 @@ run_full_mode() {
     echo ""
 
     local server2_ip
-    read -p "IP-адрес Сервера 2: " server2_ip
+    while [[ -z "$server2_ip" ]]; do
+        read -p "IP-адрес Сервера 2 [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " server2_ip
+        [[ -z "$server2_ip" ]] && error "IP-адрес обязателен. Установка прервана."
+    done
 
     local server2_port
-    read -p "Порт inbound Сервера 2: " server2_port
+    while [[ -z "$server2_port" ]]; do
+        read -p "Порт inbound Сервера 2 [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " server2_port
+        [[ -z "$server2_port" ]] && error "Порт обязателен. Установка прервана."
+    done
 
     local server2_uuid
-    read -p "UUID Сервера 2: " server2_uuid
+    while [[ -z "$server2_uuid" ]]; do
+        read -p "UUID Сервера 2 [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " server2_uuid
+        [[ -z "$server2_uuid" ]] && error "UUID обязателен. Установка прервана."
+    done
 
     local secret_path
-    read -p "Секретный путь (такой же, как на Сервере 2): " secret_path
-    [[ -z "$secret_path" ]] && error "Секретный путь не может быть пустым"
+    while [[ -z "$secret_path" ]]; do
+        read -p "Секретный путь (такой же, как на Сервере 2) [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " secret_path
+        [[ -z "$secret_path" ]] && error "Секретный путь обязателен. Установка прервана."
+    done
     [[ "$secret_path" != /* ]] && secret_path="/$secret_path"
 
     echo ""
