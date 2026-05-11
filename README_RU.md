@@ -40,7 +40,7 @@
 ### Шаг 1: Сервер 2 (зарубежный, ретранслятор)
 
 ```bash
-bash <(curl -Ls https://github.com/Yuissy/xui-reverse-proxy/blob/main/reverse_proxy.sh) --mode relay
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy.sh) --mode relay
 ```
 Скрипт задаст несколько вопросов и в конце выдаст карточку с параметрами. Сохраните их — они понадобятся для настройки Сервера 1
 
