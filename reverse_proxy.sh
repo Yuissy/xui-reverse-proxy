@@ -436,7 +436,8 @@ run_relay_mode() {
 
     local inbound_port
     local suggested_port=$(random_port)
-    set +u; read -p "Порт для туннеля [Enter = $suggested_port]: " inbound_port; set -u
+    printf "Порт для туннеля [Enter = %s]: " "$suggested_port"
+    read inbound_port || true
     [[ -z "$inbound_port" ]] && inbound_port=$suggested_port
     if [[ ! "$inbound_port" =~ ^[0-9]+$ ]] || [[ "$inbound_port" -lt 1024 ]] || [[ "$inbound_port" -gt 65535 ]]; then
         error "Некорректный порт (1024-65535)"
@@ -446,7 +447,8 @@ run_relay_mode() {
     fi
 
     local secret_path
-    set +eu; read -p "Секретный путь [Enter = сгенерировать]: " secret_path; set -eu
+    printf "Секретный путь [Enter = сгенерировать]: "
+    read secret_path || true
     [[ -z "$secret_path" ]] && secret_path="/$(random_string 12)"
     [[ "$secret_path" != /* ]] && secret_path="/$secret_path"
 
