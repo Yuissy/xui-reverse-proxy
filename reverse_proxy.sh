@@ -131,6 +131,12 @@ setup_ufw() {
     fi
     ufw allow "$ssh_port/tcp"
 
+    # Сохраняем SOCKS5-прокси, если порт 1080 уже открыт
+    if ufw status | grep -q "1080/tcp"; then
+        local socks_rule=$(ufw status | grep "1080/tcp" | awk '{print $3}')
+        ufw allow from "$socks_rule" to any port 1080 proto tcp
+    fi
+
     if [[ "$mode" == "full" ]]; then
         ufw allow 80/tcp
         ufw allow 443/tcp
