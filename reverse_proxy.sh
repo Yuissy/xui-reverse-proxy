@@ -597,9 +597,11 @@ EOF
         --cert-name "$domain" \
         --no-eff-email --non-interactive
 
-    # Восстанавливаем прокси
-    export http_proxy="$_http_proxy_backup"
-    export https_proxy="$_https_proxy_backup"
+    # Восстанавливаем прокси, если он был настроен
+    if [[ -n "$_http_proxy_backup" ]]; then
+        export http_proxy="$_http_proxy_backup"
+        export https_proxy="$_https_proxy_backup"
+    fi
 
     echo "renew_hook = systemctl reload nginx" >> "/etc/letsencrypt/renewal/$domain.conf"
     set +o pipefail
@@ -897,7 +899,10 @@ chmod 600 "$DIR_REVERSE_PROXY/client_uuid.conf"
 }
 EOF
 
-    info "Конфигурация Xray создана"
+    # Копируем конфиг в путь панели 3x-ui
+    mkdir -p /usr/local/x-ui/bin/
+    cp /usr/local/etc/xray/config.json /usr/local/x-ui/bin/config.json
+    info "Конфигурация Xray создана и скопирована в панель"
 }
 
 # Проверка Сервера 1
@@ -1042,8 +1047,8 @@ run_full_mode() {
     chown -R root:root /usr/local/etc/xray/
     chmod 644 /usr/local/etc/xray/config.json
 
-    systemctl enable xray
-    systemctl restart xray
+    systemctl enable x-ui
+    systemctl restart x-ui
     systemctl restart nginx
     verify_full
 
