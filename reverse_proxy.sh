@@ -972,7 +972,7 @@ run_full_mode() {
     done
 
     local web_base_path
-    printf "Путь к панели управления (напр. /myadmin) [Enter = сгенерировать]: "
+    printf "Путь к панели управления без "/" (напр. myadmin) [Enter = сгенерировать]: "
     read web_base_path || true
     [[ -z "$web_base_path" ]] && web_base_path=$(random_string 12)
     web_base_path="${web_base_path#/}"
