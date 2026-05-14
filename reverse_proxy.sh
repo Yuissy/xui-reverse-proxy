@@ -577,6 +577,11 @@ dns_cloudflare_api_token = $cf_token
 EOF
     chmod 600 "$creds"
 
+    # Временно отключаем SOCKS-прокси (certbot не поддерживает)
+    local _http_proxy_backup="$http_proxy"
+    local _https_proxy_backup="$https_proxy"
+    unset http_proxy https_proxy
+
     certbot certonly --dns-cloudflare \
         --dns-cloudflare-credentials "$creds" \
         --dns-cloudflare-propagation-seconds 30 \
@@ -585,6 +590,10 @@ EOF
         --agree-tos -m "$email" \
         --cert-name "$domain" \
         --no-eff-email --non-interactive
+
+    # Восстанавливаем прокси
+    export http_proxy="$_http_proxy_backup"
+    export https_proxy="$_https_proxy_backup"
 
     echo "renew_hook = systemctl reload nginx" >> "/etc/letsencrypt/renewal/$domain.conf"
     set +o pipefail
