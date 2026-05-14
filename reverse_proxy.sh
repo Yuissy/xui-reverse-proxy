@@ -656,7 +656,6 @@ http {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     include /etc/nginx/conf.d/*.conf;
-    include /etc/nginx/locations/*.conf;
 }
 stream { include /etc/nginx/stream-enabled/*.conf; }
 EOF
