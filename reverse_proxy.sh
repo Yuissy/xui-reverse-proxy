@@ -253,13 +253,16 @@ download_geo_files() {
     local geo_dir="/usr/local/share/xray"
     mkdir -p "$geo_dir"
 
+    GEOIP_OK=false
+    GEOSITE_OK=false
+
     curl -L --max-time 30 -o "$geo_dir/geoip.dat" \
         "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat" && \
-        info "geoip.dat загружен" || warning "Ошибка загрузки geoip.dat"
+        { info "geoip.dat загружен"; GEOIP_OK=true; } || warning "Ошибка загрузки geoip.dat"
 
     curl -L --max-time 30 -o "$geo_dir/geosite.dat" \
         "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat" && \
-        info "geosite.dat загружен" || warning "Ошибка загрузки geosite.dat"
+        { info "geosite.dat загружен"; GEOSITE_OK=true; } || warning "Ошибка загрузки geosite.dat"
 }
 
 # Автообновление geo-файлов
@@ -984,7 +987,7 @@ run_full_mode() {
     done
 
     local web_base_path
-    printf "Путь к панели управления без "/" (напр. myadmin) [Enter = сгенерировать]: "
+    printf "Путь к панели управления без слэш / (напр. MyAdmin) [Enter = сгенерировать]: "
     read web_base_path || true
     [[ -z "$web_base_path" ]] && web_base_path=$(random_string 12)
     web_base_path="${web_base_path#/}"
@@ -1053,6 +1056,16 @@ run_full_mode() {
     verify_full
 
     # Финальный вывод
+        # Предложить перекачать geo-файлы, если что-то не загрузилось
+    if ! $GEOIP_OK || ! $GEOSITE_OK; then
+        warning "Некоторые geo-файлы не загрузились. Маршрутизация РФ может работать некорректно."
+        read -p "Попробовать загрузить geo-файлы заново? [Y/n]: " rego
+        rego=${rego:-y}
+        if [[ "${rego,,}" == "y" ]]; then
+            download_geo_files
+            systemctl restart x-ui 2>/dev/null || true
+        fi
+    fi
     local client_uuid
     client_uuid=$(cat "$DIR_REVERSE_PROXY/client_uuid.conf" 2>/dev/null || echo "не найден")
     local server_ip
