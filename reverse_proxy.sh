@@ -967,6 +967,7 @@ run_full_mode() {
     printf "Путь к панели управления (напр. /myadmin) [Enter = сгенерировать]: "
     read web_base_path || true
     [[ -z "$web_base_path" ]] && web_base_path=$(random_string 12)
+    web_base_path="${web_base_path#/}"
 
     echo ""
     echo "Введите параметры зарубежного сервера (Сервер 2):"
