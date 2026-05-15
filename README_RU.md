@@ -94,6 +94,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/update.sh) relay
 ```
+
 Что делает скрипт
 Шаг	Сервер 1 (full)	Сервер 2 (relay)
 Бэкап конфигов	x	x
