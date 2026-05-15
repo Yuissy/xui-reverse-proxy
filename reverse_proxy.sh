@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ########################################
-# REVERSE PROXY FORK v1.2
+# REVERSE PROXY FORK v1.3
 # XHTTP + Cascade (full/relay)
 # Основан на скрипте cortez24rus (MIT)
 ########################################
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 DIR_REVERSE_PROXY="/usr/local/reverse_proxy/"
 
 # Цвета
