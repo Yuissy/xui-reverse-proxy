@@ -22,6 +22,16 @@ warning() { echo -e "${YELLOW}[!]${NC} $*"; }
 error()   { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 section() { echo -e "\n${CYAN}=== $* ===${NC}"; }
 
+# Обёртка curl с поддержкой SOCKS5
+_curl() {
+    if [[ -n "${http_proxy:-}" ]] && [[ "${http_proxy}" == socks5h://* ]]; then
+        local socks_host="${http_proxy#socks5h://}"
+        curl --socks5-hostname "$socks_host" "$@"
+    else
+        curl "$@"
+    fi
+}
+
 # Проверка root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -744,7 +754,7 @@ EOF
 install_xui_panel() {
     section "Установка панели 3x-ui"
 
-    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+    bash <(_curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
 
     # Привязка панели к localhost (чтобы не светилась в мир)
     local db_path="/etc/x-ui/x-ui.db"
