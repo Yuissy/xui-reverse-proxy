@@ -82,6 +82,29 @@ bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/check_installation.sh)
 ```
+## Обслуживание серверов
+
+Для автоматического обновления, бэкапа и очистки используйте скрипт `update.sh`.
+
+```bash
+# Сервер 1 (РФ) — обновление панели 3x-ui, Xray, geo-файлов, системы
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/update.sh) full
+```
+```bash
+# Сервер 2 (Зарубежный) — обновление голого Xray, системы
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/update.sh) relay
+```
+Что делает скрипт
+Шаг	Сервер 1 (full)	Сервер 2 (relay)
+Бэкап конфигов	✅	✅
+Обновление панели 3x-ui + Xray	✅	—
+Обновление голого Xray	—	✅
+Обновление geo-файлов	✅	—
+Обновление системных пакетов	✅	✅
+Очистка старых логов	✅	✅
+Вывод статуса сервера	✅	✅
+Рекомендуется запускать раз в месяц.
+
 Дополнительно
 После установки рекомендуется проверить сервер через ByeByeVPN — внешний сканер детектируемости прокси.
 
