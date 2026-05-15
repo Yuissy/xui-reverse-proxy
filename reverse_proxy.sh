@@ -266,26 +266,43 @@ download_geo_files() {
     GEOIP_OK=false
     GEOSITE_OK=false
 
-    curl -L --max-time 30 -o "$geo_dir/geoip.dat" \
-        "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat" && \
+    curl -L --max-time 300 -o "$geo_dir/geoip.dat" \
+        "https://github.com/hydraponique/roscomvpn-geoip/releases/latest/download/geoip.dat" && \
         { info "geoip.dat загружен"; GEOIP_OK=true; } || warning "Ошибка загрузки geoip.dat"
 
-    curl -L --max-time 30 -o "$geo_dir/geosite.dat" \
-        "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat" && \
+    curl -L --max-time 300 -o "$geo_dir/geosite.dat" \
+        "https://github.com/hydraponique/roscomvpn-geosite/releases/latest/download/geosite.dat" && \
         { info "geosite.dat загружен"; GEOSITE_OK=true; } || warning "Ошибка загрузки geosite.dat"
 }
 
 # Автообновление geo-файлов
 setup_geo_autoupdate() {
     section "Настройка автообновления geo"
-    cat > /usr/local/bin/update-geodata.sh <<'EOF'
+    cat > /usr/local/bin/update-geodata.sh <<'UEOF'
 #!/bin/bash
 GEO_DIR="/usr/local/share/xray"
 mkdir -p "$GEO_DIR"
-curl -L --max-time 30 -o "$GEO_DIR/geoip.dat" "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geoip.dat"
-curl -L --max-time 30 -o "$GEO_DIR/geosite.dat" "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/geosite.dat"
-systemctl restart xray 2>/dev/null || true
-EOF
+
+# Проверяем SOCKS5-прокси
+SOCKS_HOST=""
+if [[ -n "${http_proxy:-}" ]] && [[ "${http_proxy}" == socks5h://* ]]; then
+    SOCKS_HOST="${http_proxy#socks5h://}"
+fi
+
+if [[ -n "$SOCKS_HOST" ]]; then
+    curl -L --max-time 300 --socks5-hostname "$SOCKS_HOST" -o "$GEO_DIR/geoip.dat" \
+        "https://github.com/hydraponique/roscomvpn-geoip/releases/latest/download/geoip.dat"
+    curl -L --max-time 300 --socks5-hostname "$SOCKS_HOST" -o "$GEO_DIR/geosite.dat" \
+        "https://github.com/hydraponique/roscomvpn-geosite/releases/latest/download/geosite.dat"
+else
+    curl -L --max-time 300 -o "$GEO_DIR/geoip.dat" \
+        "https://github.com/hydraponique/roscomvpn-geoip/releases/latest/download/geoip.dat"
+    curl -L --max-time 300 -o "$GEO_DIR/geosite.dat" \
+        "https://github.com/hydraponique/roscomvpn-geosite/releases/latest/download/geosite.dat"
+fi
+
+systemctl restart x-ui 2>/dev/null || true
+UEOF
     chmod +x /usr/local/bin/update-geodata.sh
     
     # Добавляем cron-задачу напрямую
@@ -404,7 +421,29 @@ configure_xray_relay() {
     "port": $inbound_port,
     "protocol": "vless",
     "settings": { "clients": [{ "id": "$uuid", "flow": "" }], "decryption": "none" },
-    "streamSettings": { "network": "xhttp", "xhttpSettings": {"path": "$secret_path", "host": "", "scMaxEachPostBytes": "1000000-2000000"} },
+    "streamSettings": {
+      "network": "xhttp",
+      "xhttpSettings": {
+        "path": "$secret_path",
+        "host": "",
+        "mode": "packet-up",
+        "scMaxBufferedPosts": 30,
+        "scMaxEachPostBytes": "1000000-2000000",
+        "noSSEHeader": false,
+        "xPaddingBytes": "100-1000"
+      },
+      "sockopt": {
+        "tcpFastOpen": false,
+        "tcpNoDelay": true,
+        "tcpMaxSeg": 1440,
+        "tcpCongestion": "bbr",
+        "tcpMptcp": false,
+        "tcpKeepAliveIdle": 60,
+        "tcpKeepAliveInterval": 30,
+        "tcpUserTimeout": 10000,
+        "tcpWindowClamp": 600
+      }
+    },
     "sniffing": { "enabled": true, "destOverride": ["http", "tls"], "routeOnly": true }
   }],
   "outbounds": [
@@ -416,7 +455,7 @@ configure_xray_relay() {
     "domainStrategy": "AsIs",
     "rules": [
       { "type": "field", "domain": ["domain:ifconfig.me","domain:ipinfo.io","domain:2ip.ru","domain:ipify.org","domain:icanhazip.com"], "outboundTag": "blocked" },
-      { "type": "field", "domain": ["domain:chatgpt.com","domain:openai.com","domain:gemini.google.com","domain:claude.ai","domain:copilot.microsoft.com"], "outboundTag": "warp" },
+      { "type": "field", "domain": ["geosite:openai","domain:gemini.google.com","domain:claude.ai","domain:copilot.microsoft.com"], "outboundTag": "warp" },
       { "type": "field", "network": "tcp,udp", "outboundTag": "direct" }
     ]
   }
@@ -781,83 +820,110 @@ configure_xray_full() {
     local uuid
     uuid=$(generate_uuid)
     # Сохраняем клиентский UUID для финального вывода
-mkdir -p "$DIR_REVERSE_PROXY"
-echo "$uuid" > "$DIR_REVERSE_PROXY/client_uuid.conf"
-chmod 600 "$DIR_REVERSE_PROXY/client_uuid.conf"
-    mkdir -p /usr/local/etc/xray/
+    mkdir -p "$DIR_REVERSE_PROXY"
+    echo "$uuid" > "$DIR_REVERSE_PROXY/client_uuid.conf"
+    chmod 600 "$DIR_REVERSE_PROXY/client_uuid.conf"
 
-    cat > /usr/local/etc/xray/config.json <<EOF
-{
-  "log": {
-    "loglevel": "warning",
-    "access": "/var/log/xray/access.log",
-    "error": "/var/log/xray/error.log"
-  },
-  "inbounds": [
-    {
-      "tag": "xhttp-in",
-      "listen": "127.0.0.1",
-      "port": 10000,
-      "protocol": "vless",
-      "settings": {
-        "clients": [
-          {
-            "id": "$uuid",
-            "flow": ""
-          }
-        ],
-        "decryption": "none"
-      },
-      "streamSettings": {
-        "network": "xhttp",
-        "xhttpSettings": {
-    "path": "$secret_path",
-    "host": "",
-    "scMaxEachPostBytes": "1000000-2000000"
+    # Обновляем inbound'ы и настройки через БД панели
+    update_panel_db "$domain" "$secret_path" "$server2_ip" "$server2_port" "$server2_uuid" "$uuid" "$web_base_path"
 }
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls"],
-        "routeOnly": true
-      }
-    }
-  ],
+
+# Обновление inbound'ов и настроек панели через БД
+update_panel_db() {
+    local domain=$1
+    local secret_path=$2
+    local server2_ip=$3
+    local server2_port=$4
+    local server2_uuid=$5
+    local client_uuid=$6
+    local web_base_path=$7
+
+    local db_path="/etc/x-ui/x-ui.db"
+    
+    if [[ ! -f "$db_path" ]]; then
+        warning "База данных панели не найдена. Пропускаем обновление inbound'ов."
+        return 1
+    fi
+
+    local stream_settings
+    stream_settings=$(cat <<STEOF
+{
+  "network": "xhttp",
+  "security": "none",
+  "xhttpSettings": {
+    "path": "$secret_path",
+    "host": "$domain",
+    "mode": "packet-up",
+    "scMaxBufferedPosts": 30,
+    "scMaxEachPostBytes": "1000000-2000000",
+    "noSSEHeader": false,
+    "xPaddingBytes": "100-1000"
+  },
+  "sockopt": {
+    "tcpFastOpen": false,
+    "tcpNoDelay": true,
+    "tcpMaxSeg": 1440,
+    "tcpCongestion": "bbr",
+    "tcpMptcp": false,
+    "tcpKeepAliveIdle": 60,
+    "tcpKeepAliveInterval": 30,
+    "tcpUserTimeout": 10000,
+    "tcpWindowClamp": 600
+  }
+}
+STEOF
+)
+
+    local inbound_settings="{\"clients\":[{\"id\":\"$client_uuid\",\"flow\":\"\"}],\"decryption\":\"none\"}"
+    local sniffing='{"enabled":true,"destOverride":["http","tls"],"routeOnly":true}'
+
+    sqlite3 "$db_path" "DELETE FROM inbounds WHERE port = 10000;"
+    sqlite3 "$db_path" "INSERT INTO inbounds (remark, port, protocol, settings, stream_settings, sniffing, listen) VALUES ('xhttp-cascade', 10000, 'vless', '$inbound_settings', '$stream_settings', '$sniffing', '127.0.0.1');"
+    sqlite3 "$db_path" "UPDATE settings SET value = '/${web_base_path}/' WHERE key = 'webBasePath';"
+
+    local xray_template
+    xray_template=$(cat <<XEOF
+{
   "outbounds": [
     {
       "tag": "direct",
       "protocol": "freedom",
-      "settings": {
-        "domainStrategy": "UseIPv4"
-      }
+      "settings": {"domainStrategy": "UseIPv4"}
     },
     {
       "tag": "cascade",
       "protocol": "vless",
       "settings": {
-        "vnext": [
-          {
-            "address": "$server2_ip",
-            "port": $server2_port,
-            "users": [
-              {
-                "id": "$server2_uuid",
-                "flow": "",
-                "encryption": "none"
-              }
-            ]
-          }
-        ]
+        "vnext": [{
+          "address": "$server2_ip",
+          "port": $server2_port,
+          "users": [{"id": "$server2_uuid", "flow": "", "encryption": "none"}]
+        }]
       },
       "streamSettings": {
-    "network": "xhttp",
-    "fingerprint": "chrome",
-    "xhttpSettings": {
-        "path": "$secret_path",
-        "host": "",
-        "scMaxEachPostBytes": "1000000-2000000"
-            }
+        "network": "xhttp",
+        "fingerprint": "chrome",
+        "xhttpSettings": {
+          "path": "$secret_path",
+          "host": "",
+          "mode": "packet-up",
+          "scMaxBufferedPosts": 30,
+          "scMaxEachPostBytes": "1000000-2000000",
+          "noSSEHeader": false,
+          "xPaddingBytes": "100-1000"
+        },
+        "sockopt": {
+          "tcpFastOpen": false,
+          "tcpNoDelay": true,
+          "tcpMaxSeg": 1440,
+          "tcpCongestion": "bbr",
+          "tcpMptcp": false,
+          "tcpKeepAliveIdle": 60,
+          "tcpKeepAliveInterval": 30,
+          "tcpUserTimeout": 10000,
+          "tcpWindowClamp": 600
         }
+      }
     },
     {
       "tag": "blocked",
@@ -868,54 +934,22 @@ chmod 600 "$DIR_REVERSE_PROXY/client_uuid.conf"
   "routing": {
     "domainStrategy": "AsIs",
     "rules": [
-      {
-        "type": "field",
-        "ip": ["geoip:private"],
-        "outboundTag": "direct"
-      },
-      {
-        "type": "field",
-        "domain": [
-          "domain:ifconfig.me",
-          "domain:ipinfo.io",
-          "domain:2ip.ru",
-          "domain:ipify.org",
-          "domain:icanhazip.com"
-        ],
-        "outboundTag": "blocked"
-      },
-      {
-        "type": "field",
-        "domain": [
-          "geosite:category-ru",
-          "geosite:category-gov-ru"
-        ],
-        "outboundTag": "direct"
-      },
-      {
-        "type": "field",
-        "ip": ["geoip:ru"],
-        "outboundTag": "direct"
-      },
-      {
-        "type": "field",
-        "domain": ["geosite:category-ads-all"],
-        "outboundTag": "blocked"
-      },
-      {
-        "type": "field",
-        "network": "tcp,udp",
-        "outboundTag": "cascade"
-      }
+      {"type": "field", "domain": ["geosite:category-ads","geosite:win-spy"], "outboundTag": "blocked"},
+      {"type": "field", "domain": ["domain:ifconfig.me","domain:ipinfo.io","domain:2ip.ru","domain:ipify.org","domain:icanhazip.com"], "outboundTag": "blocked"},
+      {"type": "field", "ip": ["geoip:private"], "outboundTag": "direct"},
+      {"type": "field", "ip": ["geoip:direct"], "outboundTag": "direct"},
+      {"type": "field", "domain": ["geosite:category-ru","geosite:whitelist"], "outboundTag": "direct"},
+      {"type": "field", "domain": ["geosite:apple","geosite:microsoft","geosite:steam","geosite:epic-games","geosite:riot","geosite:escapefromtarkov","geosite:faceit","geosite:pinterest","geosite:twitch"], "outboundTag": "direct"},
+      {"type": "field", "domain": ["geosite:youtube","geosite:telegram","geosite:github","geosite:google-play"], "outboundTag": "cascade"},
+      {"type": "field", "network": "tcp,udp", "outboundTag": "cascade"}
     ]
   }
 }
-EOF
+XEOF
+)
+    sqlite3 "$db_path" "UPDATE settings SET value = '$xray_template' WHERE key = 'xrayTemplateConfig';"
 
-    # Копируем конфиг в путь панели 3x-ui
-    mkdir -p /usr/local/x-ui/bin/
-    cp /usr/local/etc/xray/config.json /usr/local/x-ui/bin/config.json
-    info "Конфигурация Xray создана и скопирована в панель"
+    info "Inbound и настройки панели обновлены через БД"
 }
 
 # Проверка Сервера 1
@@ -930,10 +964,10 @@ verify_full() {
         ok=false
     fi
 
-    if systemctl is-active --quiet xray; then
-        info "✅ Xray запущен"
+    if ss -tlnp 2>/dev/null | grep -q ":10000 "; then
+        info "✅ Xray слушает порт 10000"
     else
-        warning "❌ Xray не запущен"
+        warning "❌ Xray не слушает порт 10000"
         ok=false
     fi
 
@@ -1056,10 +1090,6 @@ run_full_mode() {
     configure_xray_full "$domain" "$secret_path" "$server2_ip" "$server2_port" "$server2_uuid" "$web_base_path"
     configure_nginx_full "$domain" "$secret_path" "$server2_ip" "$server2_port" "$web_base_path"
     setup_mss_clamp
-
-    chown -R root:root /usr/local/etc/xray/
-    chmod 644 /usr/local/etc/xray/config.json
-
     systemctl enable x-ui
     systemctl restart x-ui
     systemctl restart nginx
