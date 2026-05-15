@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ########################################
-# REVERSE PROXY FORK v1.1
+# REVERSE PROXY FORK v1.2
 # XHTTP + Cascade (full/relay)
 # Основан на скрипте cortez24rus (MIT)
 ########################################
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 DIR_REVERSE_PROXY="/usr/local/reverse_proxy/"
 
 # Цвета
@@ -744,7 +744,7 @@ EOF
 install_xui_panel() {
     section "Установка панели 3x-ui"
 
-    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) v2.9.4
+    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
 
     # Привязка панели к localhost (чтобы не светилась в мир)
     local db_path="/etc/x-ui/x-ui.db"
