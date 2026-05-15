@@ -587,8 +587,8 @@ EOF
     chmod 600 "$creds"
 
     # Временно отключаем SOCKS-прокси (certbot не поддерживает)
-    local _http_proxy_backup="$http_proxy"
-    local _https_proxy_backup="$https_proxy"
+    local _http_proxy_backup="${http_proxy:-}"
+    local _https_proxy_backup="${https_proxy:-}"
     unset http_proxy https_proxy
 
     certbot certonly --dns-cloudflare \
