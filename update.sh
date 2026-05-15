@@ -19,6 +19,15 @@ section() { echo -e "\n${CYAN}=== $* ===${NC}"; }
 
 [[ $EUID -ne 0 ]] && error "Запустите от root"
 
+# Восстанавливаем SOCKS5-прокси, если он настроен для apt
+if [[ -f /etc/apt/apt.conf.d/99-proxy.conf ]]; then
+    local proxy_url=$(grep -oP 'socks5h://\K[^"]+' /etc/apt/apt.conf.d/99-proxy.conf 2>/dev/null | head -1)
+    if [[ -n "$proxy_url" ]]; then
+        export http_proxy="socks5h://$proxy_url"
+        export https_proxy="socks5h://$proxy_url"
+    fi
+fi
+
 # ==============================================
 # 1. Бэкап конфигов
 # ==============================================
