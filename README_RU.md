@@ -5,18 +5,18 @@
 ## Особенности
 
 - **XHTTP** как единственный транспорт (убраны gRPC, WebSocket, Reality, XTLS)
-- **Каскад:** Сервер 1 (РФ, полная установка) → Сервер 2 (зарубежный, ретранслятор)
+- **Каскад:** Сервер 1 (полная установка) → Сервер 2 (ретранслятор)
 - **Сервер 2 в режиме relay:** только Xray, без панели, без Nginx, без SSL
 - **Маршрутизация:** российские сайты — напрямую, зарубежные — через каскад, IP-чекеры — блокируются
 - **WARP (WireGuard)** для AI-сервисов (ChatGPT, Gemini, Claude) на Сервере 2
 - **Защита:** UFW, fail2ban, BBR, TCP MSS Clamp, автообновления безопасности
-- **Автообновление geo-файлов** (geoip.dat, geosite.dat) из [runetfreedom/russia-v2ray-rules-dat](https://github.com/runetfreedom/russia-v2ray-rules-dat)
+- **Автообновление geo-файлов** (geoip.dat, geosite.dat)
 - **Панель 3x-ui** на Сервере 1 привязана к localhost (доступ через SSH-туннель)
 - **Панель на Сервере 2 отсутствует** — Xray работает как самостоятельная служба
 
 ## Требования
 
-- Два VPS (один в РФ, один за рубежом)
+- Два VPS
 - Один домен, привязанный к Cloudflare (для Сервера 1)
 - ОС: Ubuntu 20.04/22.04/24.04 или Debian 11/12
 - Права root на обоих серверах
@@ -37,14 +37,14 @@
 - **Minimum TLS Version:** TLS 1.3
 - В разделе **Edge Certificates** включите **TLS 1.3**
 
-### Шаг 1: Сервер 2 (зарубежный, ретранслятор)
+### Шаг 1: Сервер 2 (ретранслятор)
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy.sh) --mode relay
 ```
 Скрипт задаст несколько вопросов и в конце выдаст карточку с параметрами. Сохраните их — они понадобятся для настройки Сервера 1
 
-### Шаг 2: Сервер 1 (РФ, точка входа)
+### Шаг 2: Сервер 1 (точка входа)
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy.sh) --mode full
@@ -86,11 +86,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/
 
 Для автоматического обновления, бэкапа и очистки используйте скрипт `update.sh`.
 
-# Сервер 1 (РФ) — обновление панели 3x-ui, Xray, geo-файлов, системы
+# Сервер 1 — обновление панели 3x-ui, Xray, geo-файлов, системы
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/update.sh) full
 ```
-# Сервер 2 (Зарубежный) — обновление голого Xray, системы
+# Сервер 2 — обновление голого Xray, системы
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/update.sh) relay
 ```
