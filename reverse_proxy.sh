@@ -186,6 +186,8 @@ findtime = 600
 EOF
 
     if [[ "$mode" == "full" ]]; then
+        mkdir -p /var/log/nginx
+        touch /var/log/nginx/error.log /var/log/nginx/access.log
         cat >> /etc/fail2ban/jail.local <<'EOF'
 
 [nginx-http-auth]
