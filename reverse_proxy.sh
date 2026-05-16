@@ -795,7 +795,7 @@ EOF
 install_xui_panel() {
     section "Установка панели 3x-ui"
 
-    bash <(_curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+    bash <(_curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) v2.9.4
 
     # Привязка панели к localhost (чтобы не светилась в мир)
     local db_path="/etc/x-ui/x-ui.db"
