@@ -36,16 +36,16 @@
 
 Установка **зарубежного сервера** (ретранслятор):
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy_v2.sh) --mode relay```
-
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy_v2.sh) --mode relay
+```
 Установка **домашнего сервера** (точка входа с панелью управления):
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy_v2.sh) --mode full```
-
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy_v2.sh) --mode full
+```
 Без аргументов откроется интерактивное меню:
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy_v2.sh)```
-
+bash <(curl -Ls https://raw.githubusercontent.com/Yuissy/xui-reverse-proxy/main/reverse_proxy_v2.sh)
+```
 
 ---
 
