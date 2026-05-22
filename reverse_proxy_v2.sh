@@ -11,7 +11,7 @@ set -euo pipefail
 ########################################
 
 VERSION="2.0.1"
-DIR_REVERSE_PROXY="/usr/local/reverse_proxy/"
+DIR_REVERSE_PROXY="/usr/local/reverse_proxy"
 
 # Цвета
 RED='\033[0;31m'
