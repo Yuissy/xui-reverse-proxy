@@ -830,10 +830,17 @@ verify_full() {
         ok=false
     fi
 
+        local port_ok=false
+    for i in 1 2 3; do
     if ss -tlnp 2>/dev/null | grep -q ":10000 "; then
         info "✅ Xray слушает порт 10000"
-    else
-        warning "❌ Xray не слушает порт 10000"
+        port_ok=true
+        break
+    fi
+        sleep 2
+    done
+    if ! $port_ok; then
+        warning "❌ Xray не слушает порт 10000 (проверено 3 раза)"
         ok=false
     fi
 
