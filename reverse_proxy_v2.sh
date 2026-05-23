@@ -306,7 +306,7 @@ install_xui_panel() {
     info "Панель привязана к localhost"
 }
 
-# Создание inbound на порту 10000 (ЗАГЛУШКА — будет заменено на CLI/API)
+# Создание inbound на порту 10000 (через SQLite, так как CLI не поддерживает inbound add)
 configure_inbound() {
     local domain=$1
     local secret_path=$2
@@ -314,11 +314,9 @@ configure_inbound() {
     
     section "Настройка inbound"
     
-    # Временная реализация через SQLite (до перехода на CLI/API)
     local db_path="/etc/x-ui/x-ui.db"
     if [[ ! -f "$db_path" ]]; then
-        warning "База данных панели не найдена. Inbound не создан."
-        return 1
+        error "База данных панели не найдена. Inbound не создан."
     fi
     
     local stream_settings
@@ -333,7 +331,12 @@ configure_inbound() {
     "scMaxBufferedPosts": 30,
     "scMaxEachPostBytes": "1000000-2000000",
     "noSSEHeader": false,
-    "xPaddingBytes": "100-1000"
+    "xPaddingBytes": "100-1000",
+    "headers": {
+      "Server": "nginx/1.25.0",
+      "Content-Type": "text/html; charset=UTF-8",
+      "X-Powered-By": "PHP/8.1"
+    }
   },
   "sockopt": {
     "tcpFastOpen": false,
@@ -361,7 +364,7 @@ STEOF
     sqlite3 "$db_path" "DELETE FROM inbounds WHERE port = 10000;"
     sqlite3 "$db_path" "INSERT INTO inbounds (user_id, remark, port, protocol, settings, stream_settings, sniffing, listen, enable, tag) VALUES (1, 'xhttp-cascade', 10000, 'vless', '$inbound_settings', '$stream_settings', '$sniffing', '127.0.0.1', 1, '$tag');"
     
-    info "Inbound создан (временное решение через SQLite)"
+    info "Inbound создан успешно"
 }
 
 # Nginx (Сервер 1)
@@ -534,22 +537,27 @@ EOF
     fi
 }
 
-# Xray Template Config (полный)
-generate_xray_template() {
+# Модификация дефолтного Xray Template Config (замена outbounds и routing)
+modify_default_template() {
     local server2_ip=$1
     local server2_port=$2
     local server2_uuid=$3
     local secret_path=$4
     
-    cat <<XEOF
-{
-  "log": {"loglevel": "warning", "access": "/var/log/xray/access.log", "error": "/var/log/xray/error.log"},
-  "api": {
-    "tag": "api",
-    "services": ["HandlerService", "LoggerService", "StatsService"]
-  },
-  "inbounds": [],
-  "outbounds": [
+    local db_path="/etc/x-ui/x-ui.db"
+    
+    # Получаем дефолтный шаблон
+    local default_template
+    default_template=$(sqlite3 "$db_path" "SELECT value FROM settings WHERE key = 'xrayTemplateConfig';")
+    
+    if [[ -z "$default_template" ]]; then
+        error "Не удалось прочитать дефолтный шаблон из БД"
+    fi
+    
+    # Наши outbounds
+    local new_outbounds
+    new_outbounds=$(cat <<OUTEOF
+[
     {"tag": "direct", "protocol": "freedom", "settings": {"domainStrategy": "UseIPv4"}},
     {
       "tag": "cascade",
@@ -576,12 +584,14 @@ generate_xray_template() {
       }
     },
     {"tag": "blocked", "protocol": "blackhole", "settings": {}}
-  ],
-  "policy": {
-    "levels": {"0": {"statsUserDownlink": true, "statsUserUplink": true}},
-    "system": {"statsInboundDownlink": true, "statsInboundUplink": true}
-  },
-  "routing": {
+]
+OUTEOF
+)
+
+    # Наши правила маршрутизации
+    local new_routing
+    new_routing=$(cat <<REOF
+{
     "domainStrategy": "AsIs",
     "rules": [
       {"type": "field", "ip": ["geoip:private"], "outboundTag": "direct"},
@@ -592,20 +602,24 @@ generate_xray_template() {
       {"type": "field", "ip": ["geoip:ru"], "outboundTag": "direct"},
       {"type": "field", "network": "tcp,udp", "outboundTag": "cascade"}
     ]
-  },
-  "stats": {}
 }
-XEOF
-}
-
-# Применение Xray шаблона в панели
-apply_xray_template() {
-    local template=$1
-    local db_path="/etc/x-ui/x-ui.db"
+REOF
+)
     
-    template=$(sql_escape "$template")
-    sqlite3 "$db_path" "INSERT OR REPLACE INTO settings (key, value) VALUES ('xrayTemplateConfig', '$template');"
-    info "Xray Template Config обновлён"
+    # Заменяем outbounds и routing через jq
+    local modified_template
+    if ! modified_template=$(jq \
+        --argjson outbounds "$new_outbounds" \
+        --argjson routing "$new_routing" \
+        '.outbounds = $outbounds | .routing = $routing' \
+        <<< "$default_template"); then
+        error "Не удалось модифицировать шаблон через jq"
+    fi
+    
+    # Сохраняем обратно в БД
+    modified_template=$(sql_escape "$modified_template")
+    sqlite3 "$db_path" "INSERT OR REPLACE INTO settings (key, value) VALUES ('xrayTemplateConfig', '$modified_template');"
+    info "Xray Template Config обновлён (модификация дефолтного шаблона)"
 }
 
 # WARP
@@ -1014,10 +1028,8 @@ run_full_mode() {
     panel_port=${panel_port:-2053}
     info "Порт панели: $panel_port"
     
-    # Генерация и применение Xray Template
-    local xray_template
-    xray_template=$(generate_xray_template "$server2_ip" "$server2_port" "$server2_uuid" "$secret_path")
-    apply_xray_template "$xray_template"
+    # Модификация дефолтного Xray Template
+    modify_default_template "$server2_ip" "$server2_port" "$server2_uuid" "$secret_path"
     
     # Создание inbound (временное решение)
     configure_inbound "$domain" "$secret_path" "$client_uuid"
