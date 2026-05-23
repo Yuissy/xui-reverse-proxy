@@ -538,6 +538,7 @@ EOF
 }
 
 # Модификация дефолтного Xray Template Config (замена outbounds и routing)
+# Если шаблон отсутствует в БД — генерирует полный шаблон самостоятельно
 modify_default_template() {
     local server2_ip=$1
     local server2_port=$2
@@ -546,12 +547,26 @@ modify_default_template() {
     
     local db_path="/etc/x-ui/x-ui.db"
     
-    # Получаем дефолтный шаблон
+    # Получаем дефолтный шаблон (может быть пустым)
     local default_template
-    default_template=$(sqlite3 "$db_path" "SELECT value FROM settings WHERE key = 'xrayTemplateConfig';")
+    default_template=$(sqlite3 "$db_path" "SELECT value FROM settings WHERE key = 'xrayTemplateConfig';" 2>/dev/null || true)
     
+    # Если шаблон пуст — генерируем полный JSON с дефолтными секциями
     if [[ -z "$default_template" ]]; then
-        error "Не удалось прочитать дефолтный шаблон из БД"
+        warning "Дефолтный шаблон в БД отсутствует. Создаю полный шаблон..."
+        default_template='{
+  "log": {"loglevel": "warning", "access": "none", "error": "", "dnsLog": false, "maskAddress": ""},
+  "api": {"tag": "api", "services": ["HandlerService", "LoggerService", "StatsService"]},
+  "inbounds": [],
+  "outbounds": [],
+  "policy": {
+    "levels": {"0": {"statsUserDownlink": true, "statsUserUplink": true}},
+    "system": {"statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": false, "statsOutboundUplink": false}
+  },
+  "routing": {"domainStrategy": "AsIs", "rules": []},
+  "stats": {},
+  "metrics": {"tag": "metrics_out", "listen": "127.0.0.1:11111"}
+}'
     fi
     
     # Наши outbounds
