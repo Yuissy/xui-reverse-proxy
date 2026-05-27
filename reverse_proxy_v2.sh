@@ -2,15 +2,13 @@
 set -euo pipefail
 
 ########################################
-# REVERSE PROXY FORK v2.0.1
+# REVERSE PROXY FORK v2.1.0
 # XHTTP + Cascade (full/relay)
-# Исправлены критические ошибки v2.0.0:
-# - восстановлено правило ext:geosite_RU.dat:ru-blocked
-# - динамический порт панели в Nginx
-# - добавлена проверка смены пароля admin
+# Полная переработка с учётом стабильности,
+# совместимости и обхода блокировок
 ########################################
 
-VERSION="2.0.1"
+VERSION="2.1.0"
 DIR_REVERSE_PROXY="/usr/local/reverse_proxy"
 
 # Цвета
@@ -140,10 +138,12 @@ setup_ufw() {
     fi
     ufw allow "$ssh_port/tcp"
 
-    # Сохраняем SOCKS5-прокси, если порт 1080 уже открыт
+    # Сохраняем SOCKS5-прокси, если порт 1080 уже открыт и правило валидно
     if ufw status | grep -q "1080/tcp"; then
         local socks_rule=$(ufw status | grep "1080/tcp" | awk '{print $3}')
-        ufw allow from "$socks_rule" to any port 1080 proto tcp
+        if [[ "$socks_rule" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            ufw allow from "$socks_rule" to any port 1080 proto tcp
+        fi
     fi
 
     if [[ "$mode" == "full" ]]; then
@@ -281,12 +281,18 @@ install_xui_panel() {
         password="admin"
     fi
     
+    # Ждём, пока панель точно запустится
+    for i in {1..10}; do
+        systemctl is-active --quiet x-ui && break
+        sleep 2
+    done
+    
     # Меняем на admin/admin с проверкой
     local attempt=0
-    local max_attempts=3
+    local max_attempts=5
     while [[ $attempt -lt $max_attempts ]]; do
         /usr/local/x-ui/x-ui setting -username "admin" -password "admin" -resetTwoFactor true
-        sleep 2
+        sleep 3
         # Проверяем, что пароль применился
         local current_user
         current_user=$(sqlite3 /etc/x-ui/x-ui.db "SELECT username FROM users WHERE id=1;" 2>/dev/null)
@@ -364,6 +370,9 @@ STEOF
     sqlite3 "$db_path" "DELETE FROM inbounds WHERE port = 10000;"
     sqlite3 "$db_path" "INSERT INTO inbounds (user_id, remark, port, protocol, settings, stream_settings, sniffing, listen, enable, tag) VALUES (1, 'xhttp-cascade', 10000, 'vless', '$inbound_settings', '$stream_settings', '$sniffing', '127.0.0.1', 1, '$tag');"
     
+    # Применяем изменения немедленно
+    systemctl restart x-ui
+    sleep 3
     info "Inbound создан успешно"
 }
 
@@ -519,13 +528,13 @@ location $secret_path {
     proxy_http_version 1.1;
     proxy_request_buffering off;
     proxy_buffering off;
+    proxy_cache off;
+    chunked_transfer_encoding off;
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_read_timeout 1d;
-    proxy_send_timeout 1d;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
 }
 EOF
 
@@ -563,7 +572,7 @@ modify_default_template() {
     "levels": {"0": {"statsUserDownlink": true, "statsUserUplink": true}},
     "system": {"statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": false, "statsOutboundUplink": false}
   },
-  "routing": {"domainStrategy": "AsIs", "rules": []},
+  "routing": {"domainStrategy": "IPIfNonMatch", "rules": []},
   "stats": {},
   "metrics": {"tag": "metrics_out", "listen": "127.0.0.1:11111"}
 }'
@@ -607,8 +616,9 @@ OUTEOF
     local new_routing
     new_routing=$(cat <<REOF
 {
-    "domainStrategy": "AsIs",
+    "domainStrategy": "IPIfNonMatch",
     "rules": [
+      {"type": "field", "network": "udp", "port": 53, "outboundTag": "direct"},
       {"type": "field", "ip": ["geoip:private"], "outboundTag": "direct"},
       {"type": "field", "domain": ["domain:ifconfig.me","domain:ipinfo.io","domain:2ip.ru","domain:ipify.org","domain:icanhazip.com"], "outboundTag": "blocked"},
       {"type": "field", "protocol": ["bittorrent"], "outboundTag": "blocked"},
@@ -764,6 +774,7 @@ configure_xray_relay() {
   "routing": {
     "domainStrategy": "AsIs",
     "rules": [
+      { "type": "field", "network": "udp", "port": 53, "outboundTag": "direct" },
       { "type": "field", "domain": ["domain:ifconfig.me","domain:ipinfo.io","domain:2ip.ru","domain:ipify.org","domain:icanhazip.com"], "outboundTag": "blocked" },
       { "type": "field", "domain": ["geosite:openai","domain:gemini.google.com","domain:claude.ai","domain:copilot.microsoft.com"], "outboundTag": "warp" },
       { "type": "field", "network": "tcp,udp", "outboundTag": "direct" }
@@ -830,13 +841,13 @@ verify_full() {
         ok=false
     fi
 
-        local port_ok=false
+    local port_ok=false
     for i in 1 2 3; do
-    if ss -tlnp 2>/dev/null | grep -q ":10000 "; then
-        info "✅ Xray слушает порт 10000"
-        port_ok=true
-        break
-    fi
+        if ss -tlnp 2>/dev/null | grep -q ":10000 "; then
+            info "✅ Xray слушает порт 10000"
+            port_ok=true
+            break
+        fi
         sleep 2
     done
     if ! $port_ok; then
@@ -1053,7 +1064,7 @@ run_full_mode() {
     # Модификация дефолтного Xray Template
     modify_default_template "$server2_ip" "$server2_port" "$server2_uuid" "$secret_path"
     
-    # Создание inbound (временное решение)
+    # Создание inbound
     configure_inbound "$domain" "$secret_path" "$client_uuid"
     
     configure_nginx_full "$domain" "$secret_path" "$web_base_path" "$panel_port"
@@ -1087,6 +1098,9 @@ run_full_mode() {
     echo "  Путь: $secret_path"
     echo "  UUID: $client_uuid"
     echo "  Тип: VLESS + XHTTP"
+    echo "  Режим (Mode): packet-up (ОБЯЗАТЕЛЬНО!)"
+    echo "  TLS: True"
+    echo "  SNI: $domain"
     echo "============================================"
     echo ""
     echo "  ПОСЛЕ УСТАНОВКИ:"
