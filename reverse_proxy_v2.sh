@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ########################################
-# REVERSE PROXY FORK v2.1.0
+# REVERSE PROXY FORK v2.1.1
 # XHTTP + Cascade (full/relay)
 # Полная переработка с учётом стабильности,
 # совместимости и обхода блокировок
 ########################################
 
-VERSION="2.1.0"
+VERSION="2.1.1"
 DIR_REVERSE_PROXY="/usr/local/reverse_proxy"
 
 # Цвета
@@ -418,6 +418,28 @@ EOF
     (crontab -l 2>/dev/null; echo "0 5 1 */2 * certbot -q renew") | crontab -
     set -o pipefail
     info "Сертификаты выпущены"
+}
+
+# Проверка валидности Cloudflare токена
+check_cf_token() {
+    local cf_token=$1
+    local email=$2
+    section "Проверка Cloudflare токена"
+    
+    local response
+    response=$(curl --silent --request GET \
+        --url "https://api.cloudflare.com/client/v4/zones" \
+        --header "X-Auth-Key: ${cf_token}" \
+        --header "X-Auth-Email: ${email}" \
+        --header "Content-Type: application/json")
+    
+    if echo "$response" | grep -q '"success":\s*true'; then
+        info "Токен Cloudflare действителен."
+        return 0
+    else
+        warning "Не удалось проверить токен Cloudflare. Проверьте API-ключ и email."
+        return 1
+    fi
 }
 
 # Конфиг Nginx (Сервер 1)
@@ -975,9 +997,15 @@ run_full_mode() {
     echo ""
 
     local domain=""
-    while [[ -z "$domain" ]]; do
+    local domain_regex='^([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+\.[a-zA-Z]{2,})$'
+    while true; do
         read -p "Ваш домен (например, example.ru) [обязательно]. Для выхода из процесса установки оставьте поле пустым и нажмите Enter: " domain
         [[ -z "$domain" ]] && error "Домен обязателен. Установка прервана."
+        if [[ "$domain" =~ $domain_regex ]]; then
+            break
+        else
+            warning "Некорректный формат домена. Попробуйте снова."
+        fi
     done
 
     local email=""
@@ -990,6 +1018,21 @@ run_full_mode() {
     while [[ -z "$cf_token" ]]; do
         read -p "API-ключ Cloudflare (Global API Key) [обязательно]. Для выхода оставьте поле пустым и нажмите Enter: " cf_token
         [[ -z "$cf_token" ]] && error "API-ключ Cloudflare обязателен. Установка прервана."
+    done
+
+    # Проверка Cloudflare токена (повторять пока не пройдёт)
+    while true; do
+        if check_cf_token "$cf_token" "$email"; then
+            break
+        else
+            read -p "Хотите ввести другие данные? [Y/n]: " retry
+            retry=${retry:-y}
+            if [[ "${retry,,}" != "y" ]]; then
+                error "Установка прервана пользователем."
+            fi
+            read -p "Email Cloudflare: " email
+            read -p "API-ключ Cloudflare (Global API Key): " cf_token
+        fi
     done
 
     local web_base_path
