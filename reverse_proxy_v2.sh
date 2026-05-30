@@ -102,7 +102,7 @@ generate_uuid() {
 # Установка зависимостей
 install_dependencies() {
     section "Установка зависимостей"
-    local deps=("curl" "wget" "jq" "openssl" "ufw" "fail2ban" "ca-certificates" "gnupg" "sqlite3" "iptables-persistent" "python3")
+    local deps=("curl" "wget" "jq" "openssl" "ufw" "fail2ban" "ca-certificates" "gnupg" "sqlite3" "iptables-persistent" "python3" "unzip")
     local missing=()
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &>/dev/null && ! dpkg -l 2>/dev/null | grep -q "^ii.*$dep"; then
@@ -299,6 +299,9 @@ update_xray_core() {
     section "Обновление Xray-core"
     local xray_tmp_dir="/tmp/xray_update_$$"
     mkdir -p "$xray_tmp_dir"
+    if ! command -v unzip &>/dev/null; then
+        $PKG_INSTALL unzip
+    fi    
     if curl -L --max-time 120 -o "$xray_tmp_dir/Xray-linux-64.zip" \
         "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip"; then
         unzip -o "$xray_tmp_dir/Xray-linux-64.zip" -d "$xray_tmp_dir" > /dev/null 2>&1
