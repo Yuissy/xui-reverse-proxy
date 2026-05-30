@@ -555,17 +555,19 @@ check_cf_token() {
     section "Проверка Cloudflare токена"
     
     local response
-    response=$(curl --silent --request GET \
+    response=$(curl --silent --noproxy "api.cloudflare.com" --request GET \
         --url "https://api.cloudflare.com/client/v4/zones" \
         --header "X-Auth-Key: ${cf_token}" \
         --header "X-Auth-Email: ${email}" \
         --header "Content-Type: application/json")
     
-    if echo "$response" | grep -q '"success":\s*true'; then
+    if echo "$response" | jq -e '.success == true' &>/dev/null; then
         info "Токен Cloudflare действителен."
         return 0
     else
-        warning "Не удалось проверить токен Cloudflare. Проверьте API-ключ и email."
+        local cf_error
+        cf_error=$(echo "$response" | jq -r '.errors[0].message // "неизвестная ошибка"' 2>/dev/null)
+        warning "Не удалось проверить токен Cloudflare: $cf_error"
         return 1
     fi
 }
