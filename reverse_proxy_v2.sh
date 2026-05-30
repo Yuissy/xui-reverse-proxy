@@ -1133,7 +1133,7 @@ run_full_mode() {
     echo ""
 
     local domain=""
-    local domain_regex='^([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+\.[a-zA-Z]{2,})$'
+    local domain_regex='^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$'
     while true; do
         read -p "Ваш домен (например, example.ru) [обязательно]. Для выхода из процесса установки оставьте поле пустым и нажмите Enter: " domain
         [[ -z "$domain" ]] && error "Домен обязателен. Установка прервана."
