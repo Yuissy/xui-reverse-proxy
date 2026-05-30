@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ########################################
-# REVERSE PROXY FORK v2.1.1
+# REVERSE PROXY FORK v2.2.0
 # XHTTP + Cascade (full/relay)
 # Полная переработка с учётом стабильности,
 # совместимости и обхода блокировок
 ########################################
 
-VERSION="2.1.1"
+VERSION="2.2.0"
 DIR_REVERSE_PROXY="/usr/local/reverse_proxy"
 
 # Цвета
@@ -102,7 +102,7 @@ generate_uuid() {
 # Установка зависимостей
 install_dependencies() {
     section "Установка зависимостей"
-    local deps=("curl" "wget" "jq" "openssl" "ufw" "fail2ban" "ca-certificates" "gnupg" "sqlite3" "iptables-persistent")
+    local deps=("curl" "wget" "jq" "openssl" "ufw" "fail2ban" "ca-certificates" "gnupg" "sqlite3" "iptables-persistent" "python3")
     local missing=()
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &>/dev/null && ! dpkg -l 2>/dev/null | grep -q "^ii.*$dep"; then
@@ -124,6 +124,7 @@ install_dependencies() {
 setup_ufw() {
     local mode=$1
     local inbound_port=${2:-0}
+    local reality_port=${3:-0}
     section "Настройка UFW"
 
     ufw --force reset
@@ -149,7 +150,12 @@ setup_ufw() {
     if [[ "$mode" == "full" ]]; then
         ufw allow 80/tcp
         ufw allow 443/tcp
-        info "Открыты порты: $ssh_port (SSH), 80, 443"
+        if [[ "$reality_port" -gt 0 ]]; then
+            ufw allow "$reality_port/tcp"
+            info "Открыты порты: $ssh_port (SSH), 80, 443, $reality_port (Reality)"
+        else
+            info "Открыты порты: $ssh_port (SSH), 80, 443"
+        fi
     elif [[ "$mode" == "relay" ]]; then
         ufw allow "$inbound_port/tcp"
         info "Открыты порты: $ssh_port (SSH), $inbound_port (Xray)"
@@ -263,6 +269,46 @@ setup_geo_autoupdate() {
         (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
     fi
     info "Автообновление geo включено (еженедельно)"
+
+    # Автообновление Xray-core (еженедельно)
+    local cron_xray="0 5 * * 6 /usr/local/reverse_proxy/update_xray_core.sh >> /var/log/xray_update.log 2>&1"
+    if ! crontab -l 2>/dev/null | grep -qF "update_xray_core.sh"; then
+        # Создаём скрипт-обёртку, если его нет
+        cat > /usr/local/reverse_proxy/update_xray_core.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+TMP_DIR="/tmp/xray_update_$$"
+mkdir -p "$TMP_DIR"
+if curl -L --max-time 120 -o "$TMP_DIR/Xray-linux-64.zip" \
+    "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip"; then
+    unzip -o "$TMP_DIR/Xray-linux-64.zip" -d "$TMP_DIR" > /dev/null 2>&1
+    cp -f "$TMP_DIR/xray" /usr/local/x-ui/bin/xray-linux-amd64
+    chmod +x /usr/local/x-ui/bin/xray-linux-amd64
+    rm -rf "$TMP_DIR"
+    systemctl restart x-ui
+fi
+EOF
+        chmod +x /usr/local/reverse_proxy/update_xray_core.sh
+        (crontab -l 2>/dev/null; echo "$cron_xray") | crontab -
+        info "Автообновление Xray-core включено (еженедельно)"
+    fi
+}
+
+# Обновление Xray-core внутри панели 3x-ui
+update_xray_core() {
+    section "Обновление Xray-core"
+    local xray_tmp_dir="/tmp/xray_update_$$"
+    mkdir -p "$xray_tmp_dir"
+    if curl -L --max-time 120 -o "$xray_tmp_dir/Xray-linux-64.zip" \
+        "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip"; then
+        unzip -o "$xray_tmp_dir/Xray-linux-64.zip" -d "$xray_tmp_dir" > /dev/null 2>&1
+        cp -f "$xray_tmp_dir/xray" /usr/local/x-ui/bin/xray-linux-amd64
+        chmod +x /usr/local/x-ui/bin/xray-linux-amd64
+        rm -rf "$xray_tmp_dir"
+        info "Xray-core обновлён до последней версии"
+    else
+        warning "Не удалось загрузить свежую версию Xray. Будет использоваться версия из комплекта 3x-ui."
+    fi
 }
 
 # Установка панели 3x-ui
@@ -309,6 +355,10 @@ install_xui_panel() {
     done
     
     /usr/local/x-ui/x-ui setting -listenIP "127.0.0.1"
+
+        # Обновляем Xray-core до актуальной версии
+    update_xray_core
+    
     info "Панель привязана к localhost"
 }
 
@@ -361,7 +411,7 @@ STEOF
     
     local inbound_settings="{\"clients\":[{\"id\":\"$client_uuid\",\"flow\":\"\"}],\"decryption\":\"none\"}"
     local sniffing='{"enabled":true,"destOverride":["http","tls"],"routeOnly":true}'
-    local tag="inbound-127.0.0.1:10000"
+    local tag="inbound-xhttp"
     
     stream_settings=$(sql_escape "$stream_settings")
     inbound_settings=$(sql_escape "$inbound_settings")
@@ -369,11 +419,89 @@ STEOF
     
     sqlite3 "$db_path" "DELETE FROM inbounds WHERE port = 10000;"
     sqlite3 "$db_path" "INSERT INTO inbounds (user_id, remark, port, protocol, settings, stream_settings, sniffing, listen, enable, tag) VALUES (1, 'xhttp-cascade', 10000, 'vless', '$inbound_settings', '$stream_settings', '$sniffing', '127.0.0.1', 1, '$tag');"
-    
-    # Применяем изменения немедленно
+    info "XHTTP inbound создан"
+
+    # --- Reality inbound (резервный, прямое подключение без Nginx) ---
+    # Рандомный порт с проверкой занятости
+    local reality_port
+    reality_port=$(shuf -i 10001-60000 -n 1)
+    while ss -tlnp 2>/dev/null | grep -q ":$reality_port "; do
+        reality_port=$(shuf -i 10001-60000 -n 1)
+    done
+
+    local reality_uuid
+    reality_uuid=$(generate_uuid)
+
+    # Генерация ключей X25519 через xray
+    local key_pair
+    key_pair=$(/usr/local/x-ui/bin/xray-linux-amd64 x25519 2>/dev/null)
+    local reality_private_key reality_public_key
+    reality_private_key=$(echo "$key_pair" | grep "Private key:" | awk '{print $3}')
+    reality_public_key=$(echo "$key_pair"  | grep "Public key:"  | awk '{print $3}')
+
+    if [[ -z "$reality_private_key" || -z "$reality_public_key" ]]; then
+        warning "Не удалось сгенерировать ключи Reality. Резервный inbound не создан."
+        REALITY_PORT=""
+        REALITY_UUID=""
+        REALITY_PUBLIC_KEY=""
+        REALITY_SHORT_ID=""
+    else
+        # Случайные shortIds разной длины
+        local short_id_1 short_id_2 short_id_3
+        short_id_1=$(openssl rand -hex 2)
+        short_id_2=$(openssl rand -hex 4)
+        short_id_3=$(openssl rand -hex 8)
+        local short_ids_json="[\"$short_id_1\",\"$short_id_2\",\"$short_id_3\"]"
+
+        local reality_stream
+        reality_stream=$(cat <<REOF
+{
+  "network": "tcp",
+  "security": "reality",
+  "realitySettings": {
+    "show": false,
+    "dest": "127.0.0.1:443",
+    "serverNames": ["$domain"],
+    "privateKey": "$reality_private_key",
+    "shortIds": $short_ids_json,
+    "settings": {
+      "publicKey": "$reality_public_key",
+      "fingerprint": "chrome",
+      "serverName": "",
+      "spiderX": "/"
+    }
+  },
+  "tcpSettings": {
+    "acceptProxyProtocol": false,
+    "header": { "type": "none" }
+  }
+}
+REOF
+)
+        local reality_settings="{\"clients\":[{\"id\":\"$reality_uuid\",\"flow\":\"xtls-rprx-vision\"}],\"decryption\":\"none\"}"
+        local reality_sniffing='{"enabled":true,"destOverride":["http","tls"],"metadataOnly":false,"routeOnly":true}'
+        local reality_tag="inbound-reality"
+
+        reality_stream=$(sql_escape "$reality_stream")
+        reality_settings=$(sql_escape "$reality_settings")
+        reality_sniffing=$(sql_escape "$reality_sniffing")
+
+        sqlite3 "$db_path" "DELETE FROM inbounds WHERE port = $reality_port;"
+        sqlite3 "$db_path" "INSERT INTO inbounds (user_id, remark, port, protocol, settings, stream_settings, sniffing, listen, enable, tag) VALUES (1, 'reality-reserve', $reality_port, 'vless', '$reality_settings', '$reality_stream', '$reality_sniffing', '0.0.0.0', 1, '$reality_tag');"
+
+        # Экспортируем для использования в setup_ufw и финальном выводе
+        REALITY_PORT="$reality_port"
+        REALITY_UUID="$reality_uuid"
+        REALITY_PUBLIC_KEY="$reality_public_key"
+        REALITY_SHORT_ID="$short_id_1"
+
+        info "Reality inbound создан (порт $reality_port)"
+    fi
+
+    # Применяем изменения
     systemctl restart x-ui
     sleep 3
-    info "Inbound создан успешно"
+    info "Inbound настройка завершена"
 }
 
 # Nginx (Сервер 1)
@@ -866,7 +994,7 @@ verify_full() {
     local port_ok=false
     for i in 1 2 3; do
         if ss -tlnp 2>/dev/null | grep -q ":10000 "; then
-            info "✅ Xray слушает порт 10000"
+            info "✅ Xray слушает порт 10000 (XHTTP)"
             port_ok=true
             break
         fi
@@ -875,6 +1003,14 @@ verify_full() {
     if ! $port_ok; then
         warning "❌ Xray не слушает порт 10000 (проверено 3 раза)"
         ok=false
+    fi
+
+    if [[ -n "${REALITY_PORT:-}" && "$REALITY_PORT" -gt 0 ]]; then
+        if ss -tlnp 2>/dev/null | grep -q ":$REALITY_PORT "; then
+            info "✅ Xray слушает порт $REALITY_PORT (Reality)"
+        else
+            warning "⚠️  Reality порт $REALITY_PORT не слушает — inbound может появиться после перезапуска"
+        fi
     fi
 
     if systemctl is-active --quiet x-ui; then
@@ -1090,7 +1226,6 @@ run_full_mode() {
     [[ "${confirm,,}" != "y" ]] && error "Отменено"
 
     setup_bbr
-    setup_ufw "full"
     setup_fail2ban "full"
     setup_auto_updates
     install_nginx_full
@@ -1107,8 +1242,15 @@ run_full_mode() {
     # Модификация дефолтного Xray Template
     modify_default_template "$server2_ip" "$server2_port" "$server2_uuid" "$secret_path"
     
-    # Создание inbound
+    # Создание inbound (XHTTP + Reality) — экспортирует REALITY_PORT
+    REALITY_PORT=""
+    REALITY_UUID=""
+    REALITY_PUBLIC_KEY=""
+    REALITY_SHORT_ID=""
     configure_inbound "$domain" "$secret_path" "$client_uuid"
+    
+    # UFW вызывается после configure_inbound, чтобы знать REALITY_PORT
+    setup_ufw "full" 0 "${REALITY_PORT:-0}"
     
     configure_nginx_full "$domain" "$secret_path" "$web_base_path" "$panel_port"
     setup_mss_clamp
@@ -1135,16 +1277,33 @@ run_full_mode() {
     echo "  ssh -L $panel_port:127.0.0.1:$panel_port root@$server_ip"
     echo "  Затем откройте: http://127.0.0.1:$panel_port/$web_base_path"
     echo ""
-    echo "  ДАННЫЕ ДЛЯ КЛИЕНТА (v2rayN/Nekobox):"
+    echo "  ДАННЫЕ ДЛЯ КЛИЕНТА — ОСНОВНОЙ (VLESS + XHTTP):"
     echo "  Адрес: $domain"
     echo "  Порт: 443"
-    echo "  Путь: $secret_path"
     echo "  UUID: $client_uuid"
+    echo "  Путь: $secret_path"
     echo "  Тип: VLESS + XHTTP"
     echo "  Режим (Mode): packet-up (ОБЯЗАТЕЛЬНО!)"
     echo "  TLS: True"
     echo "  SNI: $domain"
     echo "============================================"
+    if [[ -n "${REALITY_PORT:-}" && "$REALITY_PORT" -gt 0 ]]; then
+    echo ""
+    echo "  ДАННЫЕ ДЛЯ КЛИЕНТА — РЕЗЕРВНЫЙ (VLESS + Reality):"
+    echo "  Адрес: $server_ip"
+    echo "  Порт: $REALITY_PORT"
+    echo "  UUID: $REALITY_UUID"
+    echo "  Flow: xtls-rprx-vision"
+    echo "  Тип: VLESS + Reality (TCP)"
+    echo "  SNI: $domain"
+    echo "  PublicKey: $REALITY_PUBLIC_KEY"
+    echo "  ShortID: $REALITY_SHORT_ID"
+    echo "  Fingerprint: chrome"
+    echo "============================================"
+    echo "  При блокировке XHTTP переключайтесь на Reality"
+    echo "  в настройках клиента (v2rayN/Nekobox)."
+    echo "============================================"
+    fi
     echo ""
     echo "  ПОСЛЕ УСТАНОВКИ:"
     echo "  НАСТРОЙКА SSH-КЛЮЧЕЙ (рекомендуется):"
