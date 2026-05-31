@@ -440,7 +440,7 @@ STEOF
     key_pair=$(/usr/local/x-ui/bin/xray-linux-amd64 x25519 2>/dev/null)
     local reality_private_key reality_public_key
     reality_private_key=$(echo "$key_pair" | grep "PrivateKey:" | awk '{print $2}')
-    reality_public_key=$(echo "$key_pair"  | grep "PublicKey:"  | awk '{print $2}')
+    reality_public_key=$(echo "$key_pair" | grep "PublicKey)" | awk '{print $2}')
 
     if [[ -z "$reality_private_key" || -z "$reality_public_key" ]]; then
         warning "Не удалось сгенерировать ключи Reality. Резервный inbound не создан."
